@@ -1,0 +1,76 @@
+&pinctrl {
+    i2s {
+        pinctrl_i2s: i2s {
+            atmel,pins =
+                <AT91_PIOB 19 AT91_PERIPH_B AT91_PINCTRL_NONE    /* I2S_CK */
+                 AT91_PIOB 20 AT91_PERIPH_B AT91_PINCTRL_NONE    /* I2S_WS */
+                 AT91_PIOB 21 AT91_PERIPH_B AT91_PINCTRL_NONE    /* I2S_DIN */
+                 AT91_PIOB 22 AT91_PERIPH_B AT91_PINCTRL_NONE    /* I2S_DOUT */
+                 AT91_PIOB 23 AT91_PERIPH_B AT91_PINCTRL_NONE>;  /* I2S_MCK */
+        };
+    };
+};
+
+&i2s {
+    pinctrl-names = "default";
+    pinctrl-0 = <&pinctrl_i2s>;
+    status = "okay";
+    #sound-dai-cells = <0>;
+};
+
+
+&{/} {
+    sound {
+        compatible = "simple-audio-card";
+        simple-audio-card,name = "SX1255";
+        #address-cells = <1>;
+        #size-cells = <0>;
+        status = "okay";
+
+        /* RX (I/Q input from SX1255) */
+        simple-audio-card,dai-link@0 {
+            reg = <0>;
+            format = "i2s";
+            bitclock-master = <&sx1255_codec>;
+            frame-master = <&sx1255_codec>;
+            
+            cpu {
+                sound-dai = <&i2s>;
+            };
+            
+            sx1255_codec: codec {
+                sound-dai = <&sx1255_rx>;
+            };
+        };
+
+        /* TX (I/Q output to SX1255) */
+        simple-audio-card,dai-link@1 {
+            reg = <1>;
+            format = "i2s";
+            bitclock-master = <&sx1255_tx_codec>;
+            frame-master = <&sx1255_tx_codec>;
+            
+            cpu {
+                sound-dai = <&i2s>;
+            };
+            
+            sx1255_tx_codec: codec {
+                sound-dai = <&sx1255_tx>;
+            };
+        };
+    };
+
+    /* SX1255 I/Q receive codec */
+    sx1255_rx: sx1255-rx {
+        compatible = "linux,spdif-dir";
+        #sound-dai-cells = <0>;
+        status = "okay";
+    };
+
+    /* SX1255 I/Q transmit codec */
+    sx1255_tx: sx1255-tx {
+        compatible = "linux,spdif-dit";
+        #sound-dai-cells = <0>;
+        status = "okay";
+    };
+};
