@@ -1,0 +1,127 @@
+// TODO -> Needed?
+&iomuxc {
+	pinctrl_sai1: sai1grp {
+		fsl,pins = <
+			MX93_PAD_SAI1_TXC__SAI1_TX_BCLK			0x31e
+			MX93_PAD_SAI1_TXFS__SAI1_TX_SYNC		0x31e
+			MX93_PAD_SAI1_TXD0__SAI1_TX_DATA00		0x31e
+			MX93_PAD_SAI1_RXD0__SAI1_RX_DATA00		0x31e
+		>;
+	};
+};
+
+// sd for 3.3v
+/* USDHC2 node (SD card interface) */
+&usdhc2 {
+    vmmc-supply = <&reg_usdhc2_vmmc>;
+    regulator-always-on;  /* Critical: Forces 3.3V rail to stay enabled */
+    no-1-8-v;            /* Maintains 3.3V operation (disables 1.8V switching) */
+    status = "okay";
+};
+
+/* Regulator definition (if not already present) */
+&reg_usdhc2_vmmc {
+    compatible = "regulator-fixed";
+    pinctrl-names = "default";
+    pinctrl-0 = <&pinctrl_reg_usdhc2_vmmc>;
+    regulator-name = "VSD_3V3";
+    regulator-min-microvolt = <3300000>;
+    regulator-max-microvolt = <3300000>;
+    gpio = <&gpio3 7 GPIO_ACTIVE_LOW>;
+    enable-active-high;
+    regulator-always-on;   // <-- Add this line!
+};
+
+// I2S0
+&sai1 {
+	#sound-dai-cells = <0>;
+	pinctrl-names = "default";
+	pinctrl-0 = <&pinctrl_sai1>;
+	//assigned-clocks = <&clk IMX93_CLK_SAI1>;
+	//assigned-clock-parents = <&clk IMX93_CLK_AUDIO_PLL>;
+	//assigned-clock-rates = <12288000>;
+	//fsl,sai-mclk-direction-output;
+	status = "okay";
+};
+
+// TODO -> Maybe needed because of pin conflict with SPI
+&sai3 {
+    status = "disabled";
+};
+
+&lpspi3 {
+	fsl,spi-num-chipselects = <1>;
+	pinctrl-names = "default", "sleep";
+	pinctrl-0 = <&pinctrl_lpspi3>;
+	pinctrl-1 = <&pinctrl_lpspi3>;
+	cs-gpios = <&gpio2 8 GPIO_ACTIVE_LOW>;
+	dmas = <&edma2 12 0 0>, <&edma2 13 0 1>;
+	dma-names = "tx", "rx";
+	status = "okay";
+
+	spidev0: spi@0 {
+		reg = <0>;
+		compatible = "semtech,sx1255";
+		spi-max-frequency = <10000000>;
+	};
+};
+
+
+&{/} {
+    sound {
+        compatible = "simple-audio-card";
+        simple-audio-card,name = "SX1255";
+        #address-cells = <1>;
+        #size-cells = <0>;
+        status = "okay";
+
+        /* RX (I/Q input from SX1255) */
+        simple-audio-card,dai-link@0 {
+            reg = <0>;
+            format = "i2s";
+            bitclock-master = <&sx1255_codec>;
+            frame-master = <&sx1255_codec>;
+            
+            cpu {
+                sound-dai = <&sai1>;
+            };
+            
+            sx1255_codec: codec {
+                sound-dai = <&sx1255_rx>;
+            };
+        };
+
+        /* TX (I/Q output to SX1255) */
+        simple-audio-card,dai-link@1 {
+            reg = <1>;
+            format = "i2s";
+            bitclock-master = <&sx1255_tx_codec>;
+            frame-master = <&sx1255_tx_codec>;
+            
+            cpu {
+                sound-dai = <&sai1>;
+            };
+            
+            sx1255_tx_codec: codec {
+                sound-dai = <&sx1255_tx>;
+            };
+        };
+    };
+
+    /* SX1255 I/Q receive codec */
+    sx1255_rx: sx1255-rx {
+        compatible = "linux,spdif-dir";
+        #sound-dai-cells = <0>;
+        status = "okay";
+    };
+
+    /* SX1255 I/Q transmit codec */
+    sx1255_tx: sx1255-tx {
+        compatible = "linux,spdif-dit";
+        #sound-dai-cells = <0>;
+        status = "okay";
+    };
+};
+
+
+
