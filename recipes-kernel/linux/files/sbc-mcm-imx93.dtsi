@@ -1,6 +1,5 @@
-// TODO -> Needed?
 &iomuxc {
-	pinctrl_sai1: sai1grp {
+	pinctrl_i2s0: sai1grp {
 		fsl,pins = <
 			MX93_PAD_SAI1_TXC__SAI1_TX_BCLK			0x31e
 			MX93_PAD_SAI1_TXFS__SAI1_TX_SYNC		0x31e
@@ -8,6 +7,35 @@
 			MX93_PAD_SAI1_RXD0__SAI1_RX_DATA00		0x31e
 		>;
 	};
+    pinctrl_i2s1: sai3grp {
+		fsl,pins = <
+			MX93_PAD_GPIO_IO16__SAI3_TX_BCLK		0x31e
+			MX93_PAD_GPIO_IO26__SAI3_TX_SYNC		0x31e
+			MX93_PAD_GPIO_IO21__SAI3_TX_DATA00		0x31e
+			MX93_PAD_GPIO_IO20__SAI3_RX_DATA00		0x31e
+		>;
+    };
+    pinctrl_spi0: lpspi3grp {
+		fsl,pins = <
+			MX93_PAD_GPIO_IO08__GPIO2_IO08		0x3fe
+			MX93_PAD_GPIO_IO09__LPSPI3_SIN		0x3fe
+			MX93_PAD_GPIO_IO10__LPSPI3_SOUT		0x3fe
+			MX93_PAD_GPIO_IO11__LPSPI3_SCK		0x3fe
+		>;
+	};
+    pinctrl_spi1: lpspi6grp {
+		fsl,pins = <
+			MX93_PAD_GPIO_IO00__GPIO2_IO00		0x3fe
+			MX93_PAD_GPIO_IO01__LPSPI6_SIN		0x3fe
+			MX93_PAD_GPIO_IO02__LPSPI6_SOUT		0x3fe
+			MX93_PAD_GPIO_IO03__LPSPI6_SCK		0x3fe
+		>;
+	};
+
+    pinctrl_uart5: uart5grp {
+        status = "disabled";
+        fsl,pins = <>;
+    };
 };
 
 // sd for 3.3v
@@ -32,28 +60,28 @@
     regulator-always-on;   // <-- Add this line!
 };
 
-// I2S0
+// I2S0 - SX1255
 &sai1 {
 	#sound-dai-cells = <0>;
 	pinctrl-names = "default";
-	pinctrl-0 = <&pinctrl_sai1>;
-	//assigned-clocks = <&clk IMX93_CLK_SAI1>;
-	//assigned-clock-parents = <&clk IMX93_CLK_AUDIO_PLL>;
-	//assigned-clock-rates = <12288000>;
-	//fsl,sai-mclk-direction-output;
+	pinctrl-0 = <&pinctrl_i2s0>;
 	status = "okay";
 };
 
-// TODO -> Maybe needed because of pin conflict with SPI
+// I2S1 - WM8960
 &sai3 {
-    status = "disabled";
+	#sound-dai-cells = <0>;
+	pinctrl-names = "default";
+	pinctrl-0 = <&pinctrl_i2s1>;
+	status = "okay";
 };
 
+// SPI0 - SX1255
 &lpspi3 {
 	fsl,spi-num-chipselects = <1>;
 	pinctrl-names = "default", "sleep";
-	pinctrl-0 = <&pinctrl_lpspi3>;
-	pinctrl-1 = <&pinctrl_lpspi3>;
+	pinctrl-0 = <&pinctrl_spi0>;
+	pinctrl-1 = <&pinctrl_spi0>;
 	cs-gpios = <&gpio2 8 GPIO_ACTIVE_LOW>;
 	dmas = <&edma2 12 0 0>, <&edma2 13 0 1>;
 	dma-names = "tx", "rx";
@@ -61,14 +89,42 @@
 
 	spidev0: spi@0 {
 		reg = <0>;
-		compatible = "semtech,sx1255";
+		compatible = "rohm,dh2228fv"; // Using a wrong device name, because apparently spidev is bad 🤷‍♀️
 		spi-max-frequency = <10000000>;
 	};
 };
 
+// SPI1 - st7735r
+&lpspi6 {
+    status = "okay";
+    fsl,spi-num-chipselects = <1>;
+    pinctrl-names = "default", "sleep";
+    pinctrl-0 = <&pinctrl_spi1>;
+    pinctrl-1 = <&pinctrl_spi1>;
+    cs-gpios = <&gpio2 0 GPIO_ACTIVE_LOW>;
+    dmas = <&edma2 18 0 0>, <&edma2 19 0 1>;
+    dma-names = "tx", "rx";
+
+    display@0 {
+        compatible = "jianda,jd-t18003-t01", "sitronix,st7735r";
+        reg = <0>;
+        spi-max-frequency = <4000000>;
+        dc-gpios = <&gpio2 19 GPIO_ACTIVE_HIGH>;
+        reset-gpios = <&gpio4 0 GPIO_ACTIVE_LOW>;
+        rotation = <270>;
+        width = <128>;
+        height = <160>;
+    };
+};
+
+// collides with SPI1
+&lpuart5 {
+	status = "disabled";
+};
+
 
 &{/} {
-    sound {
+    sound0: sound@0 {
         compatible = "simple-audio-card";
         simple-audio-card,name = "SX1255";
         #address-cells = <1>;
