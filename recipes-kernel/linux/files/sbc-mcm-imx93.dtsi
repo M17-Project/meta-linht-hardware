@@ -68,7 +68,7 @@
 	status = "okay";
 };
 
-// I2S1 - WM8960
+// I2S1 - ???
 &sai3 {
 	#sound-dai-cells = <0>;
 	pinctrl-names = "default";
