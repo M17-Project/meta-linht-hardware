@@ -1,0 +1,28 @@
+// SPDX-License-Identifier: (GPL-2.0+ OR MIT)
+/*
+ * Copyright 2023 Compulab
+ */
+
+
+
+/dts-v1/;
+#include <dt-bindings/usb/pd.h>
+#include "../freescale/imx93.dtsi"
+
+#include "mcm-imx93.dtsi"
+//#include "mcm-imx93-lvds.dtsi"
+
+//#include "sbc-mcm-imx93-leds.dtsi"
+#include "sbc-mcm-imx93-uart.dtsi"
+#include "sbc-mcm-imx93-i2c.dtsi"
+//#include "sbc-mcm-imx93-ethernet.dtsi"
+//#include "sbc-mcm-imx93-can.dtsi"
+//#include "sbc-mcm-imx93-audio.dtsi"
+//#include "sbc-mcm-imx93-lpspi.dtsi"
+
+#include "sbc-mcm-imx93.dtsi"
+
+/ {
+	model = "LinHT";
+	compatible = "compulab,mcm-imx93", "fsl,imx93";
+};

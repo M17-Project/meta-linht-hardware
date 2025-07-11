@@ -32,32 +32,18 @@
 		>;
 	};
 
-    pinctrl_uart5: uart5grp {
-        status = "disabled";
-        fsl,pins = <>;
+    pinctrl_gpio_user: gpio_usergrp {
+		fsl,pins = <
+			MX93_PAD_GPIO_IO04__GPIO2_IO04		0x31e
+			MX93_PAD_GPIO_IO05__GPIO2_IO05		0x31e
+		>;
     };
 };
 
-// sd for 3.3v
-/* USDHC2 node (SD card interface) */
-&usdhc2 {
-    vmmc-supply = <&reg_usdhc2_vmmc>;
-    regulator-always-on;  /* Critical: Forces 3.3V rail to stay enabled */
-    no-1-8-v;            /* Maintains 3.3V operation (disables 1.8V switching) */
-    status = "okay";
-};
-
-/* Regulator definition (if not already present) */
+// Disable the sdcard power regulator so we can activate him from linux
 &reg_usdhc2_vmmc {
-    compatible = "regulator-fixed";
-    pinctrl-names = "default";
-    pinctrl-0 = <&pinctrl_reg_usdhc2_vmmc>;
-    regulator-name = "VSD_3V3";
-    regulator-min-microvolt = <3300000>;
-    regulator-max-microvolt = <3300000>;
-    gpio = <&gpio3 7 GPIO_ACTIVE_LOW>;
-    enable-active-high;
-    regulator-always-on;   // <-- Add this line!
+    status = "disabled";
+    gpio = <0>;
 };
 
 // I2S0 - SX1255
@@ -181,6 +167,16 @@
         #sound-dai-cells = <0>;
         status = "okay";
     };
+
+
+    gpio_user: gpio_user {
+        compatible = "regulator-fixed";
+        pinctrl-names = "default";
+        pinctrl-0 = <&pinctrl_gpio_user>;
+        regulator-name = "BOARD_GPIO_CONFIG";
+        status = "okay";
+    };
+
 };
 
 
