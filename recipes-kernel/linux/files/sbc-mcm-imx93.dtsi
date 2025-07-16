@@ -13,6 +13,7 @@
 			MX93_PAD_GPIO_IO26__SAI3_TX_SYNC		0x31e
 			MX93_PAD_GPIO_IO21__SAI3_TX_DATA00		0x31e
 			MX93_PAD_GPIO_IO20__SAI3_RX_DATA00		0x31e
+            MX93_PAD_GPIO_IO17__SAI3_MCLK           0x31e
 		>;
     };
     pinctrl_spi0: lpspi3grp {
@@ -31,12 +32,53 @@
 			MX93_PAD_GPIO_IO03__LPSPI6_SCK		0x3fe
 		>;
 	};
-
+    // Add I2C3 pin configuration
+    pinctrl_lpi2c3: lpi2c3grp {
+        fsl,pins = <
+            MX93_PAD_GPIO_IO28__LPI2C3_SDA          0x40000bde
+            MX93_PAD_GPIO_IO29__LPI2C3_SCL          0x40000bde
+        >;
+    };
+    // GPIOS
     pinctrl_gpio_user: gpio_usergrp {
 		fsl,pins = <
-			MX93_PAD_GPIO_IO04__GPIO2_IO04		0x31e
-			MX93_PAD_GPIO_IO05__GPIO2_IO05		0x31e
+            MX93_PAD_ENET2_TD3__GPIO4_IO16      0x31e /* KBD - D1 */
+            MX93_PAD_ENET2_TD0__GPIO4_IO19      0x31e /* KBD - D2 */
+            MX93_PAD_ENET2_TD1__GPIO4_IO18      0x31e /* KBD - D3 */
+            MX93_PAD_ENET2_TX_CTL__GPIO4_IO20   0x31e /* KBD - D4 */
+            MX93_PAD_ENET2_TD2__GPIO4_IO17      0x31e /* KBD - D5 */
+            MX93_PAD_ENET2_TXC__GPIO4_IO21      0x31e /* KBD - D6 */
+            MX93_PAD_ENET2_RXC__GPIO4_IO23      0x31e /* KBD - D7 */
+            MX93_PAD_ENET2_RX_CTL__GPIO4_IO22   0x31e /* KBD - D8 */
+            MX93_PAD_ENET2_RD0__GPIO4_IO24      0x31e /* KBD - D9 */
+
+            MX93_PAD_SD2_DATA3__GPIO3_IO06      0x31e /* MIC_GAIN */
+            MX93_PAD_SD2_DATA2__GPIO3_IO05      0x31e /* /MIC_MUTE */
+
+			MX93_PAD_GPIO_IO04__GPIO2_IO04		0x31e /* 125 - LED 1 */
+			MX93_PAD_GPIO_IO05__GPIO2_IO05		0x31e /* 125 - LED 2 */
+            MX93_PAD_GPIO_IO18__GPIO2_IO18      0x31e /* 118 - FLASHLIGHT - TODO -> Remove :( */
+
+            MX93_PAD_SD3_DATA1__GPIO3_IO23      0x31e /* EXT_PTT */
+            MX93_PAD_SD3_CMD__GPIO3_IO21        0x31e /* INT_PTT */
+            MX93_PAD_SD3_DATA0__GPIO3_IO22      0x31e /* SIDE_BTN */
+            MX93_PAD_GPIO_IO22__GPIO2_IO22      0x31e /* RF_RST */
 		>;
+    };
+
+    // PWM Pins
+    pinctrl_tpm3: tpm3grp {
+        fsl,pins = <
+            MX93_PAD_GPIO_IO12__TPM3_CH2 0x31e /* KBD_PWM */
+            MX93_PAD_GPIO_IO24__TPM3_CH3 0x31e /* LCD_PWM */
+        >;
+    };
+
+    // 3.3V regulator
+    pinctrl_gpio3_io7: gpio3io7grp {
+        fsl,pins = <
+            MX93_PAD_SD2_RESET_B__GPIO3_IO07    0x31e
+        >;
     };
 };
 
@@ -44,6 +86,34 @@
 &reg_usdhc2_vmmc {
     status = "disabled";
     gpio = <0>;
+};
+
+&usdhc2 {
+    status = "disabled";
+};
+
+&usdhc3 {
+    status = "disabled";
+};
+
+// 3.3V Regulator
+&gpio3 {
+    pinctrl-names = "default";
+    pinctrl-0 = <&pinctrl_gpio3_io7>;
+    
+    gpio3_io7_hog {
+        gpio-hog;
+        gpios = <7 GPIO_ACTIVE_HIGH>;
+        output-high;
+        line-name = "gpio3_io7_always_on";
+    };
+};
+
+// PWM
+&tpm3 {
+    pinctrl-names = "default";
+    pinctrl-0 = <&pinctrl_tpm3>;
+    status = "okay";
 };
 
 // I2S0 - SX1255
@@ -56,15 +126,50 @@
 
 // I2S1 - WM8960
 &sai3 {
-	#sound-dai-cells = <0>;
-	pinctrl-names = "default";
-	pinctrl-0 = <&pinctrl_i2s1>;
-	status = "okay";
+    #sound-dai-cells = <0>;
+    pinctrl-names = "default";
+    pinctrl-0 = <&pinctrl_i2s1>;
+    assigned-clocks = <&clk IMX93_CLK_SAI3>;
+    assigned-clock-parents = <&clk IMX93_CLK_AUDIO_PLL>;
+    assigned-clock-rates = <12288000>;
+    fsl,sai-mclk-direction-output;
+    status = "okay";
 };
 
-&lpspi1 {
-    status = "disabled";
- };
+// I2C - WM8960
+&lpi2c3 {
+    #address-cells = <1>;
+    #size-cells = <0>;
+    clock-frequency = <25000>;
+    i2c-scl-rising-time-ns = <1000>;
+    i2c-scl-falling-time-ns = <300>;
+    pinctrl-names = "default", "sleep";
+    pinctrl-0 = <&pinctrl_lpi2c3>;
+    pinctrl-1 = <&pinctrl_lpi2c3>;
+    status = "okay";
+
+    wm8960: wm8960@1a {
+        compatible = "wlf,wm8960";
+        reg = <0x1a>;
+        clocks = <&clk IMX93_CLK_SAI3>;
+        clock-names = "mclk";
+        #sound-dai-cells = <0>;
+        
+        // Add power supply references
+        AVDD-supply = <&reg_wm8960_3v3>;
+        DVDD-supply = <&reg_wm8960_1v8>;
+        DCVDD-supply = <&reg_wm8960_1v8>;   
+        DBVDD-supply = <&reg_wm8960_3v3>;
+        SPKVDD1-supply = <&reg_wm8960_3v3>;
+        SPKVDD2-supply = <&reg_wm8960_3v3>;
+        
+        // Additional WM8960 specific properties
+        wlf,shared-lrclk;
+        wlf,capless;
+        
+        status = "okay";
+    };
+};
 
 // SPI0 - SX1255
 &lpspi3 {
@@ -107,11 +212,18 @@
     };
 };
 
+&lpspi1 {
+    status = "disabled";
+ };
+
 // collides with SPI1
 &lpuart5 {
 	status = "disabled";
 };
 
+&lpi2c6 {
+    status = "disabled";
+};
 
 &{/} {
     sound0: sound@0 {
@@ -168,6 +280,45 @@
         status = "okay";
     };
 
+    // WM8960 Power Supply Regulators
+    reg_wm8960_1v8: regulator-wm8960-1v8 {
+        compatible = "regulator-fixed";
+        regulator-name = "WM8960_1V8";
+        regulator-min-microvolt = <1800000>;
+        regulator-max-microvolt = <1800000>;
+        regulator-always-on;
+        regulator-boot-on;
+    };
+
+    reg_wm8960_3v3: regulator-wm8960-3v3 {
+        compatible = "regulator-fixed";
+        regulator-name = "WM8960_3V3";
+        regulator-min-microvolt = <3300000>;
+        regulator-max-microvolt = <3300000>;
+        regulator-always-on;
+        regulator-boot-on;
+    };
+
+    sound1: sound@1 {
+        compatible = "fsl,imx-audio-wm8960";
+        model = "wm8960-audio";
+        ssi-controller = <&sai3>;
+        audio-codec = <&wm8960>;
+        cpu-dai = <&sai3>;
+        codec-dai = <&wm8960>;
+        
+        audio-routing = 
+            "Headphone Jack", "HP_L",
+            "Headphone Jack", "HP_R",
+            "Ext Spk", "SPK_LP",
+            "Ext Spk", "SPK_LN",
+            "Ext Spk", "SPK_RP", 
+            "Ext Spk", "SPK_RN",
+            "LINPUT1", "AMIC",
+            "RINPUT1", "AMIC";
+        
+        status = "okay";
+    };
 
     gpio_user: gpio_user {
         compatible = "regulator-fixed";
@@ -176,7 +327,6 @@
         regulator-name = "BOARD_GPIO_CONFIG";
         status = "okay";
     };
-
 };
 
 
