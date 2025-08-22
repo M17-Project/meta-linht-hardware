@@ -39,31 +39,38 @@
             MX93_PAD_GPIO_IO29__LPI2C3_SCL          0x40000bde
         >;
     };
+
     // GPIOS
     pinctrl_gpio_user: gpio_usergrp {
 		fsl,pins = <
-            MX93_PAD_ENET2_TD3__GPIO4_IO16      0x31e /* KBD - D1 */
-            MX93_PAD_ENET2_TD0__GPIO4_IO19      0x31e /* KBD - D2 */
-            MX93_PAD_ENET2_TD1__GPIO4_IO18      0x31e /* KBD - D3 */
-            MX93_PAD_ENET2_TX_CTL__GPIO4_IO20   0x31e /* KBD - D4 */
-            MX93_PAD_ENET2_TD2__GPIO4_IO17      0x31e /* KBD - D5 */
-            MX93_PAD_ENET2_TXC__GPIO4_IO21      0x31e /* KBD - D6 */
-            MX93_PAD_ENET2_RXC__GPIO4_IO23      0x31e /* KBD - D7 */
-            MX93_PAD_ENET2_RX_CTL__GPIO4_IO22   0x31e /* KBD - D8 */
-            MX93_PAD_ENET2_RD0__GPIO4_IO24      0x31e /* KBD - D9 */
+            /* MX93_PAD_ENET2_TD3__GPIO4_IO16      0x31e /* KBD - D1 */
+            /* MX93_PAD_ENET2_TD0__GPIO4_IO19      0x31e /* KBD - D2 */
+            /* MX93_PAD_ENET2_TD1__GPIO4_IO18      0x31e /* KBD - D3 */
+            /* MX93_PAD_ENET2_TX_CTL__GPIO4_IO20   0x31e /* KBD - D4 */
+            /* MX93_PAD_ENET2_TD2__GPIO4_IO17      0x31e /* KBD - D5 */
+            /* MX93_PAD_ENET2_TXC__GPIO4_IO21      0x31e /* KBD - D6 */
+            /* MX93_PAD_ENET2_RXC__GPIO4_IO23      0x31e /* KBD - D7 */
+            /* MX93_PAD_ENET2_RX_CTL__GPIO4_IO22   0x31e /* KBD - D8 */
+            /* MX93_PAD_ENET2_RD0__GPIO4_IO24      0x31e /* KBD - D9 */
 
             MX93_PAD_SD2_DATA3__GPIO3_IO06      0x31e /* MIC_GAIN */
             MX93_PAD_SD2_DATA2__GPIO3_IO05      0x31e /* /MIC_MUTE */
 
 			MX93_PAD_GPIO_IO04__GPIO2_IO04		0x31e /* 125 - LED 1 */
 			MX93_PAD_GPIO_IO05__GPIO2_IO05		0x31e /* 125 - LED 2 */
-            MX93_PAD_GPIO_IO18__GPIO2_IO18      0x31e /* 118 - FLASHLIGHT - TODO -> Remove :( */
 
             MX93_PAD_SD3_DATA1__GPIO3_IO23      0x31e /* EXT_PTT */
             MX93_PAD_SD3_CMD__GPIO3_IO21        0x31e /* INT_PTT */
             MX93_PAD_SD3_DATA0__GPIO3_IO22      0x31e /* SIDE_BTN */
             MX93_PAD_GPIO_IO22__GPIO2_IO22      0x31e /* RF_RST */
 		>;
+    };
+
+    // Pin config (if you want a dedicated group):
+    pinctrl_flashlight: flashlightgrp {
+        fsl,pins = <
+            MX93_PAD_GPIO_IO18__GPIO2_IO18      0x31e /* 118 - FLASHLIGHT */
+        >;
     };
 
     // PWM Pins
@@ -108,6 +115,19 @@
         line-name = "gpio3_io7_always_on";
     };
 };
+
+// Flashlight
+&gpio2 {
+    pinctrl-names = "default";
+    pinctrl-0 = <&pinctrl_flashlight>;
+    gpio_flashlight_hog {
+        gpio-hog;
+        gpios = <18 GPIO_ACTIVE_HIGH>;
+        output-low;
+        line-name = "flashlight_default_off";
+    };
+};
+
 
 // PWM
 &tpm3 {
@@ -326,6 +346,23 @@
         pinctrl-0 = <&pinctrl_gpio_user>;
         regulator-name = "BOARD_GPIO_CONFIG";
         status = "okay";
+    };
+
+    matrix_keypad: matrix_keypad {
+        compatible = "linht,matrix-keypad";
+
+        // GPIOs for the 5 rows, configured as outputs
+        row-gpios = <&gpio4 20 GPIO_ACTIVE_HIGH>,  /* D4 */
+                    <&gpio4 18 GPIO_ACTIVE_HIGH>,  /* D3 */
+                    <&gpio4 19 GPIO_ACTIVE_HIGH>,  /* D2 */
+                    <&gpio4 06 GPIO_ACTIVE_HIGH>,  /* D1 */
+                    <&gpio4 24 GPIO_ACTIVE_HIGH>;  /* D9 */
+
+        // GPIOs for the 4 columns, configured as inputs
+        col-gpios = <&gpio4 22 GPIO_ACTIVE_LOW>,   /* D8 */
+                    <&gpio4 23 GPIO_ACTIVE_LOW>,   /* D7 */
+                    <&gpio4 21 GPIO_ACTIVE_LOW>,   /* D6 */
+                    <&gpio4 17 GPIO_ACTIVE_LOW>;   /* D6 */
     };
 };
 
