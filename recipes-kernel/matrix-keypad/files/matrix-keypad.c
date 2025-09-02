@@ -26,11 +26,23 @@
  */
 static const uint32_t matrix_keycodes[MATRIX_ROWS][MATRIX_COLS] = {
     { KEY_ENTER,  KEY_UP,        KEY_DOWN,     KEY_ESC    },
+    { KEY_F1,     KEY_F2,        KEY_1,        KEY_2      },
+    { KEY_3,      KEY_4,         KEY_5,        KEY_6      }, // KEY_STAR
+    { KEY_7,      KEY_8,         KEY_9,        KEY_KPASTERISK },
+    { KEY_0,     KEY_BACKSLASH,        KEY_RESERVED,        KEY_RESERVED      }  // KEY_MONI maps to F1
+};
+
+/*
+static const uint32_t matrix_keycodes[MATRIX_ROWS][MATRIX_COLS] = {
+    { KEY_ENTER,  KEY_UP,        KEY_DOWN,     KEY_ESC    },
     { KEY_3,      KEY_4,         KEY_5,        KEY_6      },
     { KEY_7,      KEY_8,         KEY_9,        KEY_KPASTERISK }, // KEY_STAR
     { KEY_0,      KEY_BACKSLASH, KEY_RESERVED, KEY_RESERVED },
     { KEY_F1,     KEY_F2,        KEY_1,        KEY_2      }  // KEY_MONI maps to F1
 };
+
+*/
+
 
 struct matrix_keypad_data {
     struct input_dev *input_dev;
