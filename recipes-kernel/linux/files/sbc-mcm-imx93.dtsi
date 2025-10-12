@@ -79,7 +79,7 @@
     // Pin config (if you want a dedicated group):
     pinctrl_flashlight: flashlightgrp {
         fsl,pins = <
-            MX93_PAD_GPIO_IO18__GPIO2_IO18      0x31e /* 118 - FLASHLIGHT */
+            MX93_PAD_GPIO_IO18__GPIO2_IO18      0x184 /* 118 - FLASHLIGHT */
         >;
     };
 
@@ -125,19 +125,6 @@
         line-name = "gpio3_io7_always_on";
     };
 };
-
-// Flashlight
-&gpio2 {
-    pinctrl-names = "default";
-    pinctrl-0 = <&pinctrl_flashlight>;
-    gpio_flashlight_hog {
-        gpio-hog;
-        gpios = <18 GPIO_ACTIVE_HIGH>;
-        output-low;
-        line-name = "flashlight_default_off";
-    };
-};
-
 
 // PWM
 &tpm3 {
@@ -375,8 +362,12 @@
                     <&gpio4 23 GPIO_ACTIVE_LOW>,   /* D7 */
                     <&gpio4 21 GPIO_ACTIVE_LOW>,   /* D6 */
                     <&gpio4 17 GPIO_ACTIVE_LOW>;   /* D5 */
+
+        // Optional discrete buttons (replace with your actual GPIO assignments)
+        ptt-gpios = <&gpio3 21 GPIO_ACTIVE_LOW>;   /* PTT button */
+        ext-ptt-gpios = <&gpio3 23 GPIO_ACTIVE_LOW>;  /* External PTT input */
+        opt-gpios = <&gpio3 22 GPIO_ACTIVE_LOW>;   /* SIDE BTN aka OPT button */
     };
+
 };
-
-
 

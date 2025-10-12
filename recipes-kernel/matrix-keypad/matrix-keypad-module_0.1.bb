@@ -1,7 +1,7 @@
 SUMMARY = "Kernel module for the LinHT (C62) keypad"
 DESCRIPTION = "Based on the OpenRTX implementation of the C62 keypad"
 LICENSE = "GPL-3.0-or-later"
-LIC_FILES_CHKSUM = "file://matrix-keypad.c;beginline=2;endline=4;md5=25b314258cc162e136570a441862fd9b"
+LIC_FILES_CHKSUM = "file://matrix-keypad.c;beginline=2;endline=4;md5=773ef425802e7771e29fa4f62d462e2d"
 
 # Inherit the 'module' class to build a kernel module
 inherit module

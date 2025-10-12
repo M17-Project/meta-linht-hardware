@@ -1,6 +1,6 @@
 /*
  * Based on the OpenRTX implementation of the C62 keyboard
- * https://github.com/OpenRTX/OpenRTX/
+ * [https://github.com/OpenRTX/OpenRTX/](https://github.com/OpenRTX/OpenRTX/)
  * Released under GPL v3
 */
 #include <linux/module.h>
@@ -26,23 +26,11 @@
  */
 static const uint32_t matrix_keycodes[MATRIX_ROWS][MATRIX_COLS] = {
     { KEY_ENTER,  KEY_UP,        KEY_DOWN,     KEY_ESC    },
-    { KEY_F1,     KEY_F2,        KEY_1,        KEY_2      },
+    { KEY_LEFT,     KEY_RIGHT,        KEY_1,        KEY_2      },
     { KEY_3,      KEY_4,         KEY_5,        KEY_6      }, // KEY_STAR
     { KEY_7,      KEY_8,         KEY_9,        KEY_KPASTERISK },
     { KEY_0,     KEY_BACKSLASH,        KEY_RESERVED,        KEY_RESERVED      }  // KEY_MONI maps to F1
 };
-
-/*
-static const uint32_t matrix_keycodes[MATRIX_ROWS][MATRIX_COLS] = {
-    { KEY_ENTER,  KEY_UP,        KEY_DOWN,     KEY_ESC    },
-    { KEY_3,      KEY_4,         KEY_5,        KEY_6      },
-    { KEY_7,      KEY_8,         KEY_9,        KEY_KPASTERISK }, // KEY_STAR
-    { KEY_0,      KEY_BACKSLASH, KEY_RESERVED, KEY_RESERVED },
-    { KEY_F1,     KEY_F2,        KEY_1,        KEY_2      }  // KEY_MONI maps to F1
-};
-
-*/
-
 
 struct matrix_keypad_data {
     struct input_dev *input_dev;
@@ -51,6 +39,13 @@ struct matrix_keypad_data {
     struct gpio_descs *row_gpios;
     struct gpio_descs *col_gpios;
     uint32_t last_key_state;
+    
+    // Optional discrete buttons
+    struct gpio_desc *ptt_gpio;      // Internal PTT button
+    struct gpio_desc *ext_ptt_gpio;  // External PTT input
+    struct gpio_desc *opt_gpio;
+    bool ptt_last;      // Combined PTT state (internal OR external)
+    bool opt_last;
 };
 
 static void matrix_keypad_scan(struct timer_list *t)
@@ -59,6 +54,7 @@ static void matrix_keypad_scan(struct timer_list *t)
     struct input_dev *input_dev = data->input_dev;
     uint32_t current_key_state = 0;
     int r, c;
+    bool any_changed = false;
 
     // Scan the matrix
     for (r = 0; r < MATRIX_ROWS; r++) {
@@ -71,7 +67,7 @@ static void matrix_keypad_scan(struct timer_list *t)
         for (c = 0; c < MATRIX_COLS; c++) {
             // If a column reads low, the key is pressed
             if (gpiod_get_value(data->col_gpios->desc[c]) == 0) {
-                current_key_state |= (1 << (r * MATRIX_COLS + c));
+                current_key_state |= (1U << (r * MATRIX_COLS + c));
             }
         }
         // Set row back to high-impedance (or high)
@@ -89,14 +85,39 @@ static void matrix_keypad_scan(struct timer_list *t)
                 if ((changed_bits >> bit_pos) & 1) {
                     bool pressed = (current_key_state >> bit_pos) & 1;
                     input_report_key(input_dev, matrix_keycodes[r][c], pressed);
+                    any_changed = true;
                 }
             }
         }
-
-        input_sync(input_dev);
+        data->last_key_state = current_key_state;
     }
 
-    data->last_key_state = current_key_state;
+    // Handle PTT buttons (internal OR external) - both map to KEY_P 
+    if (data->ptt_gpio || data->ext_ptt_gpio) {
+        bool ptt_internal = data->ptt_gpio ? !!gpiod_get_value(data->ptt_gpio) : false;
+        bool ptt_external = data->ext_ptt_gpio ? !!gpiod_get_value(data->ext_ptt_gpio) : false;
+        bool ptt_combined = ptt_internal || ptt_external;  // OR logic
+        
+        if (ptt_combined != data->ptt_last) {
+            input_report_key(input_dev, KEY_P, ptt_combined);
+            data->ptt_last = ptt_combined;
+            any_changed = true;
+        }
+    }
+
+    // Handle discrete OPT button
+    if (data->opt_gpio) {
+        bool opt_now = !!gpiod_get_value(data->opt_gpio);
+        if (opt_now != data->opt_last) {
+            input_report_key(input_dev, KEY_O, opt_now);
+            data->opt_last = opt_now;
+            any_changed = true;
+        }
+    }
+
+    if (any_changed)
+        input_sync(input_dev);
+
     mod_timer(&data->poll_timer, jiffies + msecs_to_jiffies(POLL_INTERVAL_MS));
 }
 
@@ -132,6 +153,25 @@ static int matrix_keypad_probe(struct platform_device *pdev)
         dev_err(dev, "Incorrect number of row/col gpios specified in DT\n");
         return -EINVAL;
     }
+
+    // Get optional discrete button GPIOs
+    data->ptt_gpio = devm_gpiod_get_optional(dev, "ptt", GPIOD_IN);
+    if (IS_ERR(data->ptt_gpio)) {
+        dev_err(dev, "Failed to get ptt gpio\n");
+        return PTR_ERR(data->ptt_gpio);
+    }
+
+    data->ext_ptt_gpio = devm_gpiod_get_optional(dev, "ext-ptt", GPIOD_IN);
+    if (IS_ERR(data->ext_ptt_gpio)) {
+        dev_err(dev, "Failed to get ext-ptt gpio\n");
+        return PTR_ERR(data->ext_ptt_gpio);
+    }
+
+    data->opt_gpio = devm_gpiod_get_optional(dev, "opt", GPIOD_IN);
+    if (IS_ERR(data->opt_gpio)) {
+        dev_err(dev, "Failed to get opt gpio\n");
+        return PTR_ERR(data->opt_gpio);
+    }
     
     // Do NOT configure pull-ups here; handle this in device tree with bias-pull-up properties.
 
@@ -156,6 +196,20 @@ static int matrix_keypad_probe(struct platform_device *pdev)
             if (matrix_keycodes[r][c] != KEY_RESERVED)
                 input_set_capability(input_dev, EV_KEY, matrix_keycodes[r][c]);
         }
+    }
+
+    // Advertise discrete button capabilities if GPIOs are available
+    if (data->ptt_gpio || data->ext_ptt_gpio) {
+        input_set_capability(input_dev, EV_KEY, KEY_P);
+        if (data->ptt_gpio)
+            dev_info(dev, "Internal PTT button GPIO configured\n");
+        if (data->ext_ptt_gpio)
+            dev_info(dev, "External PTT input GPIO configured\n");
+    }
+
+    if (data->opt_gpio) {
+        input_set_capability(input_dev, EV_KEY, KEY_O);
+        dev_info(dev, "OPT button GPIO configured\n");
     }
 
     // Set up and start the polling timer
@@ -206,5 +260,5 @@ static struct platform_driver matrix_keypad_driver = {
 module_platform_driver(matrix_keypad_driver);
 
 MODULE_AUTHOR("Andreas Schmidberger, OE3ANC");
-MODULE_DESCRIPTION("Matrix Keyboard Driver");
+MODULE_DESCRIPTION("Matrix Keyboard Driver with discrete button support");
 MODULE_LICENSE("GPL");
