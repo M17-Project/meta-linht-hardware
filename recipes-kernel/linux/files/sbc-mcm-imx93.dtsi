@@ -331,7 +331,6 @@
             "Ext Spk", "SPK_LN",
             "Ext Spk", "SPK_RP", 
             "Ext Spk", "SPK_RN",
-            "LINPUT1", "AMIC",
             "RINPUT1", "AMIC";
         
         status = "okay";
