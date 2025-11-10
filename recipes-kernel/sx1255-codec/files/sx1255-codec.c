@@ -158,25 +158,22 @@ static struct snd_soc_dai_driver sx1255_codec_dai = {
     
     .playback = {
         .stream_name = "Playback",
-        .channels_min = 1,
-        .channels_max = 8,
-        .rates = SNDRV_PCM_RATE_CONTINUOUS,
-        .rate_min = 8000,
-        .rate_max = 1000000,
-        .formats = SNDRV_PCM_FMTBIT_S16_LE | SNDRV_PCM_FMTBIT_S32_LE,
+        .channels_min = 2,
+        .channels_max = 2,
+        .rates = SNDRV_PCM_RATE_8000_192000,
+        .formats = SNDRV_PCM_FMTBIT_S32_LE,
     },
     
     .capture = {
         .stream_name = "Capture",
-        .channels_min = 1,
-        .channels_max = 8,
-        .rates = SNDRV_PCM_RATE_CONTINUOUS,
-        .rate_min = 8000,
-        .rate_max = 1000000,
-        .formats = SNDRV_PCM_FMTBIT_S16_LE | SNDRV_PCM_FMTBIT_S32_LE,
+        .channels_min = 2,
+        .channels_max = 2,
+        .rates = SNDRV_PCM_RATE_8000_192000,
+        .formats = SNDRV_PCM_FMTBIT_S32_LE,
     },
     
-    .symmetric_rate = 1,  // Add this for master mode
+    .symmetric_rate = 1,
+    .symmetric_channels = 1,
 };
 
 static const struct snd_soc_component_driver sx1255_component_driver = {
