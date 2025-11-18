@@ -1,0 +1,34 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: LinHT Hardware <hardware@linht.com>
+Date: Sun, 17 Nov 2025 07:26:00 +0100
+Subject: [PATCH] fsl-sai: Add custom sample rates for SDR applications
+
+Add support for 125kHz, 250kHz, and 500kHz sample rates to enable
+full-duplex SDR operation with the SX1255 radio transceiver.
+
+These rates are required for wideband I/Q data transfer over the
+SAI (Synchronous Audio Interface) when used with SDR applications.
+
+Signed-off-by: LinHT Hardware <hardware@linht.com>
+---
+ sound/soc/fsl/fsl_sai.c | 4 ++--
+ 1 file changed, 2 insertions(+), 2 deletions(-)
+
+diff --git a/sound/soc/fsl/fsl_sai.c b/sound/soc/fsl/fsl_sai.c
+index 5a53a628e2fc..1234567890ab 100644
+--- a/sound/soc/fsl/fsl_sai.c
++++ b/sound/soc/fsl/fsl_sai.c
+@@ -32,8 +32,8 @@
+ 
+ static const unsigned int fsl_sai_rates[] = {
+ 	8000, 11025, 12000, 16000, 22050,
+-	24000, 32000, 44100, 48000, 64000,
+-	88200, 96000, 176400, 192000, 352800,
+-	384000, 705600, 768000, 1411200, 2822400,
++	24000, 32000, 44100, 48000, 64000, 88200,
++	96000, 125000, 176400, 192000, 250000, 352800,
++	384000, 500000, 705600, 768000, 1411200, 2822400,
+ };
+ 
+-- 
+2.34.1

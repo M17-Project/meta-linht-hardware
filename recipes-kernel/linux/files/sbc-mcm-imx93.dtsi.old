@@ -1,10 +1,10 @@
 &iomuxc {
 	pinctrl_i2s0: sai1grp {
 		fsl,pins = <
-			MX93_PAD_SAI1_TXC__SAI1_TX_BCLK			0x31e
-			MX93_PAD_SAI1_TXFS__SAI1_TX_SYNC		0x31e
-			MX93_PAD_SAI1_TXD0__SAI1_TX_DATA00		0x31e
-			MX93_PAD_SAI1_RXD0__SAI1_RX_DATA00		0x31e
+        MX93_PAD_SAI1_TXC__SAI1_TX_BCLK         0x1fe  // Max drive
+        MX93_PAD_SAI1_TXFS__SAI1_TX_SYNC        0x1fe  // Max drive
+        MX93_PAD_SAI1_TXD0__SAI1_TX_DATA00      0x1fe  // Max drive
+        MX93_PAD_SAI1_RXD0__SAI1_RX_DATA00      0x1fe  // Max drive
 		>;
 	};
     pinctrl_i2s1: sai3grp {
@@ -133,22 +133,12 @@
     status = "okay";
 };
 
-// I2S0 - SX1255
+// I2S0 - SX1255 (SDR I/Q interface)
 &sai1 {
     #sound-dai-cells = <0>;
     pinctrl-names = "default";
     pinctrl-0 = <&pinctrl_i2s0>;
-    
-    dmas = <&edma2 22 0 0>,   /* RX: channel 22 */
-           <&edma2 21 0 1>;   /* TX: channel 21 */
-    dma-names = "rx", "tx";
-    
-    fsl,sai-synchronous-rx;   /* Add this! RX syncs to TX clock domain */
-    
-    status = "okay";
-};
-
-&edma2 {
+    fsl,sai-asynchronous;
     status = "okay";
 };
 
@@ -257,57 +247,28 @@
     sound0: sound@0 {
         compatible = "simple-audio-card";
         simple-audio-card,name = "SX1255";
-        #address-cells = <1>;
-        #size-cells = <0>;
         status = "okay";
-
-        /* RX (I/Q input from SX1255) */
-        simple-audio-card,dai-link@0 {
-            reg = <0>;
+        
+        simple-audio-card,dai-link {
             format = "i2s";
             bitclock-master = <&sx1255_codec>;
             frame-master = <&sx1255_codec>;
             
             cpu {
                 sound-dai = <&sai1>;
+                dai-tdm-slot-num = <2>;
+                dai-tdm-slot-width = <32>;
             };
             
             sx1255_codec: codec {
-                sound-dai = <&sx1255_rx>;
-            };
-        };
-
-        /* TX (I/Q output to SX1255) */
-        simple-audio-card,dai-link@1 {
-            reg = <1>;
-            format = "i2s";
-            bitclock-master = <&sx1255_tx_codec>;
-            frame-master = <&sx1255_tx_codec>;
-            
-            cpu {
-                sound-dai = <&sai1>;
-                dai-tdm-slot-num = <2>;
-                dai-tdm-slot-width = <32>;
-            };
-            
-            sx1255_tx_codec: codec {
-                sound-dai = <&sx1255_tx>;
+                sound-dai = <&sx1255>;
                 dai-tdm-slot-num = <2>;
                 dai-tdm-slot-width = <32>;
             };
         };
     };
-
-    /* SX1255 I/Q receive codec */
-    sx1255_rx: sx1255-rx {
-        compatible = "linux,spdif-dir";
-        #sound-dai-cells = <0>;
-        status = "okay";
-    };
-
-    /* SX1255 I/Q transmit codec */
-    sx1255_tx: sx1255-tx {
-        compatible = "linux,spdif-dit";
+    sx1255: sx1255-codec {
+        compatible = "semtech,sx1255-codec";
         #sound-dai-cells = <0>;
         status = "okay";
     };
@@ -364,23 +325,19 @@
         pinctrl-names = "default";
         pinctrl-0 = <&pinctrl_keypad_rows>, <&pinctrl_keypad_cols>;
 
-        // GPIOs for the 5 rows, configured as outputs
-        row-gpios = <&gpio4 20 GPIO_ACTIVE_HIGH>,  /* D4 */
-                    <&gpio4 18 GPIO_ACTIVE_HIGH>,  /* D3 */
-                    <&gpio4 19 GPIO_ACTIVE_HIGH>,  /* D2 */
-                    <&gpio4 16 GPIO_ACTIVE_HIGH>,  /* D1 */
-                    <&gpio4 24 GPIO_ACTIVE_HIGH>;  /* D9 */
+        row-gpios = <&gpio4 20 GPIO_ACTIVE_HIGH>,
+                    <&gpio4 18 GPIO_ACTIVE_HIGH>,
+                    <&gpio4 19 GPIO_ACTIVE_HIGH>,
+                    <&gpio4 16 GPIO_ACTIVE_HIGH>,
+                    <&gpio4 24 GPIO_ACTIVE_HIGH>;
 
-        // GPIOs for the 4 columns, configured as inputs
-        col-gpios = <&gpio4 22 GPIO_ACTIVE_LOW>,   /* D8 */
-                    <&gpio4 23 GPIO_ACTIVE_LOW>,   /* D7 */
-                    <&gpio4 21 GPIO_ACTIVE_LOW>,   /* D6 */
-                    <&gpio4 17 GPIO_ACTIVE_LOW>;   /* D5 */
+        col-gpios = <&gpio4 22 GPIO_ACTIVE_LOW>,
+                    <&gpio4 23 GPIO_ACTIVE_LOW>,
+                    <&gpio4 21 GPIO_ACTIVE_LOW>,
+                    <&gpio4 17 GPIO_ACTIVE_LOW>;
 
-        // Optional discrete buttons (replace with your actual GPIO assignments)
-        ptt-gpios = <&gpio3 21 GPIO_ACTIVE_LOW>;   /* PTT button */
-        ext-ptt-gpios = <&gpio3 23 GPIO_ACTIVE_LOW>;  /* External PTT input */
-        opt-gpios = <&gpio3 22 GPIO_ACTIVE_LOW>;   /* SIDE BTN aka OPT button */
+        ptt-gpios = <&gpio3 21 GPIO_ACTIVE_LOW>;
+        ext-ptt-gpios = <&gpio3 23 GPIO_ACTIVE_LOW>;
+        opt-gpios = <&gpio3 22 GPIO_ACTIVE_LOW>;
     };
-
 };
