@@ -42,18 +42,22 @@
 
     // GPIOS
     pinctrl_gpio_user: gpio_usergrp {
-		fsl,pins = <
+        fsl,pins = <
             MX93_PAD_SD2_DATA3__GPIO3_IO06      0x31e /* MIC_GAIN */
             MX93_PAD_SD2_DATA2__GPIO3_IO05      0x31e /* /MIC_MUTE */
+            MX93_PAD_GPIO_IO04__GPIO2_IO04      0x31e /* 125 - LED 1 */
+            MX93_PAD_GPIO_IO05__GPIO2_IO05      0x31e /* 125 - LED 2 */
+            MX93_PAD_GPIO_IO22__GPIO2_IO22      0x31e /* RF_RST */
+            // Removed PTT and OPT pins from here
+        >;
+    };
 
-			MX93_PAD_GPIO_IO04__GPIO2_IO04		0x31e /* 125 - LED 1 */
-			MX93_PAD_GPIO_IO05__GPIO2_IO05		0x31e /* 125 - LED 2 */
-
+    pinctrl_keypad_extras: gpio_kpdextragrp {
+        fsl,pins = <
             MX93_PAD_SD3_DATA1__GPIO3_IO23      0x31e /* EXT_PTT */
             MX93_PAD_SD3_CMD__GPIO3_IO21        0x31e /* INT_PTT */
             MX93_PAD_SD3_DATA0__GPIO3_IO22      0x31e /* SIDE_BTN */
-            MX93_PAD_GPIO_IO22__GPIO2_IO22      0x31e /* RF_RST */
-		>;
+        >;
     };
 
 
@@ -347,7 +351,7 @@
     matrix_keypad: matrix_keypad {
         compatible = "linht,matrix-keypad";
         pinctrl-names = "default";
-        pinctrl-0 = <&pinctrl_keypad_rows>, <&pinctrl_keypad_cols>;
+        pinctrl-0 = <&pinctrl_keypad_rows>, <&pinctrl_keypad_cols>, <&pinctrl_keypad_extras>;
 
         // GPIOs for the 5 rows, configured as outputs
         row-gpios = <&gpio4 20 GPIO_ACTIVE_HIGH>,  /* D4 */

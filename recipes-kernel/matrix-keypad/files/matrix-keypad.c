@@ -99,7 +99,7 @@ static void matrix_keypad_scan(struct timer_list *t)
         bool ptt_combined = ptt_internal || ptt_external;  // OR logic
         
         if (ptt_combined != data->ptt_last) {
-            input_report_key(input_dev, KEY_P, ptt_combined);
+            input_report_key(input_dev, KEY_P, !ptt_combined);
             data->ptt_last = ptt_combined;
             any_changed = true;
         }
@@ -107,9 +107,11 @@ static void matrix_keypad_scan(struct timer_list *t)
 
     // Handle discrete OPT button
     if (data->opt_gpio) {
-        bool opt_now = !!gpiod_get_value(data->opt_gpio);
+        int val = gpiod_get_value(data->opt_gpio);
+        // dev_info(data->dev, "OPT raw value: %d\n", val);
+        bool opt_now = data->opt_gpio ? !!val : false;
         if (opt_now != data->opt_last) {
-            input_report_key(input_dev, KEY_O, opt_now);
+            input_report_key(input_dev, KEY_O, !opt_now);
             data->opt_last = opt_now;
             any_changed = true;
         }
