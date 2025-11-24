@@ -92,31 +92,29 @@ static void matrix_keypad_scan(struct timer_list *t)
         data->last_key_state = current_key_state;
     }
 
-    // Handle PTT buttons (internal OR external) - both map to KEY_P 
-    if (data->ptt_gpio || data->ext_ptt_gpio) {
-        bool ptt_internal = data->ptt_gpio ? !!gpiod_get_value(data->ptt_gpio) : false;
-        bool ptt_external = data->ext_ptt_gpio ? !!gpiod_get_value(data->ext_ptt_gpio) : false;
-        bool ptt_combined = ptt_internal || ptt_external;  // OR logic
-        
-        if (ptt_combined != data->ptt_last) {
-            input_report_key(input_dev, KEY_P, !ptt_combined);
-            data->ptt_last = ptt_combined;
-            any_changed = true;
-        }
+    /* PTT: any of the two GPIOs active -> key pressed */
+    bool ptt_now = 0;
+    if (data->ptt_gpio)
+        ptt_now |= gpiod_get_value(data->ptt_gpio);
+    if (data->ext_ptt_gpio)
+        ptt_now |= gpiod_get_value(data->ext_ptt_gpio);
+
+    if (ptt_now != data->ptt_last) {
+        input_report_key(input_dev, KEY_P, !ptt_now);
+        data->ptt_last = ptt_now;
+        any_changed = true;
     }
 
-    // Handle discrete OPT button
+    /* OPT: single GPIO active -> key pressed */
     if (data->opt_gpio) {
-        int val = gpiod_get_value(data->opt_gpio);
-        // dev_info(data->dev, "OPT raw value: %d\n", val);
-        bool opt_now = data->opt_gpio ? !!val : false;
+        bool opt_now = gpiod_get_value(data->opt_gpio);
         if (opt_now != data->opt_last) {
             input_report_key(input_dev, KEY_O, !opt_now);
             data->opt_last = opt_now;
             any_changed = true;
         }
     }
-
+    
     if (any_changed)
         input_sync(input_dev);
 
@@ -226,6 +224,9 @@ static int matrix_keypad_probe(struct platform_device *pdev)
         del_timer_sync(&data->poll_timer);
         return error;
     }
+
+    data->ptt_last = 1;
+    data->opt_last = 1;
 
     platform_set_drvdata(pdev, data);
     dev_info(dev, "Matrix keypad driver loaded\n");
