@@ -48,6 +48,7 @@
             MX93_PAD_GPIO_IO04__GPIO2_IO04      0x31e /* 125 - LED 1 */
             MX93_PAD_GPIO_IO05__GPIO2_IO05      0x31e /* 125 - LED 2 */
             MX93_PAD_GPIO_IO22__GPIO2_IO22      0x31e /* RF_RST */
+            MX93_PAD_GPIO_IO25__GPIO2_IO25      0x31e /* 95 - KBD_PWM */
             // Removed PTT and OPT pins from here
         >;
     };
@@ -90,8 +91,43 @@
     // PWM Pins
     pinctrl_tpm3: tpm3grp {
         fsl,pins = <
-            MX93_PAD_GPIO_IO12__TPM3_CH2 0x31e /* KBD_PWM */
-            MX93_PAD_GPIO_IO24__TPM3_CH3 0x31e /* LCD_PWM */
+            MX93_PAD_GPIO_IO24__TPM3_CH3 0x31e /* LCD_PWM - Pin 99 */
+        >;
+    };
+
+    // GNSS GPIOs (only RST, WAKEUP, PPS)
+    pinctrl_gnss: gnssgrp {
+        fsl,pins = <
+            MX93_PAD_ENET1_TD2__GPIO4_IO03      0x31e /* Pin 83 - GNSS_RST */
+            MX93_PAD_ENET1_TD3__GPIO4_IO02      0x31e /* Pin 85 - GNSS_WAKEUP */
+            MX93_PAD_ENET1_RX_CTL__GPIO4_IO08   0x31e /* Pin 87 - GNSS_PPS */
+        >;
+    };
+
+    // UART3 for GNSS (TX/RX)
+    pinctrl_uart3: uart3grp {
+        fsl,pins = <
+            MX93_PAD_ENET1_TD0__GPIO4_IO05        0x31e /* Pin 84 - GNSS_TX */
+            MX93_PAD_ENET1_TD3__GPIO4_IO02        0x31e /* Pin 88 - GNSS_RX */
+        >;
+    };
+
+    // RF Control GPIOs
+    pinctrl_rf_control: rf_controlgrp {
+        fsl,pins = <
+            MX93_PAD_GPIO_IO15__GPIO2_IO15      0x31e /* Pin 103 - RF_SW_CTRL */
+            MX93_PAD_GPIO_IO13__GPIO2_IO13      0x31e /* Pin 104 - RF_ATT_LE2 */
+            MX93_PAD_GPIO_IO12__GPIO2_IO12      0x31e /* Pin 105 - RF_ATT_LE1 */
+            MX93_PAD_GPIO_IO07__GPIO2_IO07      0x31e /* Pin 106 - RF_ATT_CLK */
+            MX93_PAD_GPIO_IO06__GPIO2_IO06      0x31e /* Pin 107 - RF_ATT_DATA */
+            MX93_PAD_SD3_DATA3__GPIO3_IO25      0x31e /* Pin 111 - RF_PA_ENABLE */
+        >;
+    };
+
+    // Jack Detection
+    pinctrl_jack_detect: jack_detectgrp {
+        fsl,pins = <
+            MX93_PAD_ENET2_MDIO__GPIO4_IO15     0x31e /* Pin 49 - JACK_DETECT */
         >;
     };
 
@@ -157,38 +193,32 @@
     status = "okay";
 };
 
-// I2C - WM8960
+// I2C - TLV320AIC3100
 &lpi2c3 {
     #address-cells = <1>;
     #size-cells = <0>;
-    clock-frequency = <25000>;
-    i2c-scl-rising-time-ns = <1000>;
-    i2c-scl-falling-time-ns = <300>;
+    clock-frequency = <400000>;
     pinctrl-names = "default", "sleep";
     pinctrl-0 = <&pinctrl_lpi2c3>;
     pinctrl-1 = <&pinctrl_lpi2c3>;
     status = "okay";
 
-    wm8960: wm8960@1a {
-        compatible = "wlf,wm8960";
-        reg = <0x1a>;
+    aic3100: aic3100@18 {
+        compatible = "ti,tlv320aic3100";
+        reg = <0x18>;
+        #sound-dai-cells = <0>;
+
+        AVDD-supply = <&reg_aic3100_avdd>;
+        IOVDD-supply = <&reg_aic3100_iovdd>;
+        DVDD-supply = <&reg_aic3100_dvdd>;
+
+        // Optional: if you use headphone/speaker supplies
+        // HPVDD-supply = <&reg_aic3100_hpvdd>;
+        // SPLVDD-supply = <&reg_aic3100_splvdd>;
+        // SPRVDD-supply = <&reg_aic3100_sprvdd>;
+
         clocks = <&clk IMX93_CLK_SAI3>;
         clock-names = "mclk";
-        #sound-dai-cells = <0>;
-        
-        // Add power supply references
-        AVDD-supply = <&reg_wm8960_3v3>;
-        DVDD-supply = <&reg_wm8960_1v8>;
-        DCVDD-supply = <&reg_wm8960_1v8>;   
-        DBVDD-supply = <&reg_wm8960_3v3>;
-        SPKVDD1-supply = <&reg_wm8960_3v3>;
-        SPKVDD2-supply = <&reg_wm8960_3v3>;
-        
-        // Additional WM8960 specific properties
-        wlf,shared-lrclk;
-        wlf,capless;
-        
-        status = "okay";
     };
 };
 
@@ -205,7 +235,7 @@
 
 	spidev0: spi@0 {
 		reg = <0>;
-		compatible = "rohm,dh2228fv"; // Using a wrong device name, because apparently spidev is bad 🤷‍♀️
+		compatible = "rohm,dh2228fv";
 		spi-max-frequency = <10000000>;
 	};
 };
@@ -236,6 +266,13 @@
 &lpspi1 {
     status = "disabled";
  };
+
+// Enable UART3 for GNSS
+&lpuart3 {
+    pinctrl-names = "default";
+    pinctrl-0 = <&pinctrl_uart3>;
+    status = "okay";
+};
 
 // collides with SPI1
 &lpuart5 {
@@ -301,43 +338,56 @@
         status = "okay";
     };
 
-    // WM8960 Power Supply Regulators
-    reg_wm8960_1v8: regulator-wm8960-1v8 {
+    // TLV320AIC3100 Regulators
+    reg_aic3100_avdd: regulator-aic3100-avdd {
         compatible = "regulator-fixed";
-        regulator-name = "WM8960_1V8";
-        regulator-min-microvolt = <1800000>;
-        regulator-max-microvolt = <1800000>;
-        regulator-always-on;
-        regulator-boot-on;
-    };
-
-    reg_wm8960_3v3: regulator-wm8960-3v3 {
-        compatible = "regulator-fixed";
-        regulator-name = "WM8960_3V3";
+        regulator-name = "AIC3100_AVDD";
         regulator-min-microvolt = <3300000>;
         regulator-max-microvolt = <3300000>;
         regulator-always-on;
-        regulator-boot-on;
+    };
+
+    reg_aic3100_iovdd: regulator-aic3100-iovdd {
+        compatible = "regulator-fixed";
+        regulator-name = "AIC3100_IOVDD";
+        regulator-min-microvolt = <3300000>;
+        regulator-max-microvolt = <3300000>;
+        regulator-always-on;
+    };
+
+    reg_aic3100_dvdd: regulator-aic3100-dvdd {
+        compatible = "regulator-fixed";
+        regulator-name = "AIC3100_DVDD";
+        regulator-min-microvolt = <1800000>;
+        regulator-max-microvolt = <1800000>;
+        regulator-always-on;
     };
 
     sound1: sound@1 {
-        compatible = "fsl,imx-audio-wm8960";
-        model = "wm8960-audio";
-        ssi-controller = <&sai3>;
-        audio-codec = <&wm8960>;
-        cpu-dai = <&sai3>;
-        codec-dai = <&wm8960>;
-        
-        audio-routing = 
-            "Headphone Jack", "HP_L",
-            "Headphone Jack", "HP_R",
-            "Ext Spk", "SPK_LP",
-            "Ext Spk", "SPK_LN",
-            "Ext Spk", "SPK_RP", 
-            "Ext Spk", "SPK_RN",
-            "RINPUT1", "AMIC";
-        
-        status = "okay";
+        compatible = "simple-audio-card";
+        simple-audio-card,name = "tlv320aic3100-audio";
+        simple-audio-card,format = "i2s";
+
+        simple-audio-card,widgets =
+            "Headphone", "Headphone Jack",
+            "Speaker", "Speaker",
+            "Microphone", "Mic Jack";
+
+        simple-audio-card,routing =
+            "Headphone Jack", "HPOUTL",
+            "Headphone Jack", "HPOUTR",
+            "Speaker", "LOUTL",
+            "Speaker", "LOUTR",
+            "Mic Jack", "MIC3L",
+            "MIC3L", "Mic Bias";
+
+        simple-audio-card,cpu {
+            sound-dai = <&sai3>;
+        };
+
+        simple-audio-card,codec {
+            sound-dai = <&aic3100>;
+        };
     };
 
     gpio_user: gpio_user {
@@ -345,6 +395,33 @@
         pinctrl-names = "default";
         pinctrl-0 = <&pinctrl_gpio_user>;
         regulator-name = "BOARD_GPIO_CONFIG";
+        status = "okay";
+    };
+
+    // GNSS GPIO controller
+    gnss_gpio: gnss-gpio {
+        compatible = "regulator-fixed";
+        pinctrl-names = "default";
+        pinctrl-0 = <&pinctrl_gnss>;
+        regulator-name = "GNSS_GPIO_CONFIG";
+        status = "okay";
+    };
+
+    // RF Control GPIO controller
+    rf_control_gpio: rf-control-gpio {
+        compatible = "regulator-fixed";
+        pinctrl-names = "default";
+        pinctrl-0 = <&pinctrl_rf_control>;
+        regulator-name = "RF_CONTROL_GPIO_CONFIG";
+        status = "okay";
+    };
+
+    // Jack Detection GPIO
+    jack_detect_gpio: jack-detect-gpio {
+        compatible = "regulator-fixed";
+        pinctrl-names = "default";
+        pinctrl-0 = <&pinctrl_jack_detect>;
+        regulator-name = "JACK_DETECT_GPIO_CONFIG";
         status = "okay";
     };
 
