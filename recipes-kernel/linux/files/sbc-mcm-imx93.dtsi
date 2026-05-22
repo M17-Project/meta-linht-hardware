@@ -35,8 +35,8 @@
     // Add I2C3 pin configuration
     pinctrl_lpi2c3: lpi2c3grp {
         fsl,pins = <
-            MX93_PAD_GPIO_IO28__LPI2C3_SDA          0x40000bde
-            MX93_PAD_GPIO_IO29__LPI2C3_SCL          0x40000bde
+            MX93_PAD_GPIO_IO28__LPI2C3_SDA          0x31e
+            MX93_PAD_GPIO_IO29__LPI2C3_SCL          0x31e
         >;
     };
 
@@ -384,23 +384,21 @@
     };
 
     sound1: sound@1 {
-        compatible = "fsl,imx-audio-tlv320aic31xx"; 
-        model = "tlv320aic3100-audio";
-        
-        ssi-controller = <&sai3>;
-        audio-codec = <&aic3100>;
-        cpu-dai = <&sai3>;
-        codec-dai = <&aic3100>;
-        
-        // Use AIC3100-specific routing (simpler syntax)
-        audio-routing =
-            "Headphone Jack", "HPOUTL",
-            "Headphone Jack", "HPOUTR", 
-            "Mic Jack", "IN3L",
-            "IN3L", "Mic Bias";
-        
+        compatible = "simple-audio-card";
+        simple-audio-card,name = "TLV320AIC3100";
+        simple-audio-card,format = "i2s";
+        simple-audio-card,bitclock-master = <&aic3100_dai>;
+        simple-audio-card,frame-master = <&aic3100_dai>;
         status = "okay";
-	};
+
+        simple-audio-card,cpu {
+            sound-dai = <&sai3>;
+        };
+
+        aic3100_dai: simple-audio-card,codec {
+            sound-dai = <&aic3100>;
+        };
+    };
 
     gpio_user: gpio_user {
         compatible = "regulator-fixed";
