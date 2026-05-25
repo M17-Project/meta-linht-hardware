@@ -48,8 +48,6 @@
             MX93_PAD_GPIO_IO04__GPIO2_IO04      0x31e /* 125 - LED 1 */
             MX93_PAD_GPIO_IO05__GPIO2_IO05      0x31e /* 125 - LED 2 */
             MX93_PAD_GPIO_IO22__GPIO2_IO22      0x31e /* RF_RST */
-            MX93_PAD_GPIO_IO25__GPIO2_IO25      0x31e /* 95 - KBD_PWM */
-            // Removed PTT and OPT pins from here
         >;
     };
 
@@ -92,6 +90,12 @@
     pinctrl_tpm3: tpm3grp {
         fsl,pins = <
             MX93_PAD_GPIO_IO24__TPM3_CH3 0x31e /* LCD_PWM - Pin 99 */
+        >;
+    };
+
+    pinctrl_tpm4: tpm4grp {
+        fsl,pins = <
+            MX93_PAD_GPIO_IO25__TPM4_CH3 0x31e /* KBD_PWM - Pin 95 */
         >;
     };
 
@@ -183,6 +187,12 @@
 &tpm3 {
     pinctrl-names = "default";
     pinctrl-0 = <&pinctrl_tpm3>;
+    status = "okay";
+};
+
+&tpm4 {
+    pinctrl-names = "default";
+    pinctrl-0 = <&pinctrl_tpm4>;
     status = "okay";
 };
 
