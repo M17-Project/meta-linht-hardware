@@ -230,6 +230,7 @@
         compatible = "ti,tlv320aic3100";
         reg = <0x18>;
         #sound-dai-cells = <0>;
+        reset-gpios = <&gpio3 24 GPIO_ACTIVE_LOW>;
 
         AVDD-supply = <&reg_aic3100_avdd>;
         IOVDD-supply = <&reg_aic3100_iovdd>;
@@ -395,13 +396,21 @@
 
     sound1: sound@1 {
         compatible = "simple-audio-card";
-        simple-audio-card,name = "TLV320AIC3100";
-        simple-audio-card,format = "i2s";
-        simple-audio-card,bitclock-master = <&aic3100_dai>;
-        simple-audio-card,frame-master = <&aic3100_dai>;
+        simple-audio-card,name = "AUDIO";
+        simple-audio-card,format = "i2s";  // DSP mode
+        simple-audio-card,bitclock-master = <&cpu_dai>;   // SAI3 is BCLK master
+        simple-audio-card,frame-master = <&cpu_dai>;     // SAI3 is LRCLK master
         status = "okay";
 
-        simple-audio-card,cpu {
+        simple-audio-card,widgets =
+            "Microphone", "Mic Jack";
+
+        simple-audio-card,routing =
+            "MIC1LP P-Terminal", "Mic Jack",
+            "MIC1RP P-Terminal", "Mic Jack",
+            "Mic Jack", "MICBIAS";
+
+        cpu_dai: simple-audio-card,cpu {
             sound-dai = <&sai3>;
         };
 
