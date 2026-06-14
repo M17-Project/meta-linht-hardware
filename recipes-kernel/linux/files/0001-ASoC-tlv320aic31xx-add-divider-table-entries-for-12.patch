@@ -1,0 +1,50 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: OE3ANC <dev@oe3anc.at>
+Date: Sun, 14 Jun 2026 10:00:00 +0200
+Subject: [PATCH] ASoC: tlv320aic31xx: add divider table entries for 12.288 MHz MCLK
+
+The aic31xx_divs table only contains one row for a 12.288 MHz master
+clock -- the 192 kHz entry. All other rates (8k-96k) only cover 12.0 MHz
+and 12.5 MHz MCLKs, so a board supplying a 12.288 MHz MCLK source is
+limited to 192 kHz. hw_params() returns -EINVAL for any other rate,
+logged as "Sample rate (%u) and format not supported".
+
+Because 12.288 MHz x 8 = 98.304 MHz divides all 48 kHz-family rates
+exactly, the PLL uses an integer multiplier (J=8, D=0) with no
+fractional component, giving cleaner clocking than the equivalent 12 MHz
+entries which require D=1920:
+
+  8 kHz :  98,304,000 / (48 x 2 x 128) =  8000  exact
+  16 kHz:  98,304,000 / (24 x 2 x 128) = 16000  exact
+  32 kHz:  98,304,000 / (12 x 2 x 128) = 32000  exact
+  48 kHz:  98,304,000 / ( 8 x 2 x 128) = 48000  exact
+  96 kHz:  98,304,000 / ( 8 x 2 x  64) = 96000  exact
+
+All five rows produce an exact BCLK (bclk_score=0) for a standard
+2 x 16-bit stereo frame, so no "Cannot produce exact bitclock" warning
+is emitted for the common configuration.
+
+The 12.288 MHz / 192 kHz row already present in the table is left
+unchanged.
+
+Signed-off-by: OE3ANC <dev@oe3anc.at>
+---
+ sound/soc/codecs/tlv320aic31xx.c | 6 ++++++
+ 1 file changed, 6 insertions(+)
+
+diff --git a/sound/soc/codecs/tlv320aic31xx.c b/sound/soc/codecs/tlv320aic31xx.c
+--- a/sound/soc/codecs/tlv320aic31xx.c
++++ b/sound/soc/codecs/tlv320aic31xx.c
+@@ -185,6 +185,12 @@
+ 	{12000000, 176400,	1, 7, 5264,	 32,   8,  2,	 32,   8,  2},
+ 	{12000000, 176400,	1, 8, 4672,	 32,   6,  3,	 32,   6,  3},
+ 	{12500000, 176400,	1, 7, 2253,	 32,   8,  2,	 32,   8,  2},
++	/* 8k-96k for 12.288 MHz MCLK (integer PLL: J=8, D=0, PLL=98.304 MHz) */
++	{12288000,   8000,	1, 8,    0,	128,  48,  2,	128,  48,  2},
++	{12288000,  16000,	1, 8,    0,	128,  24,  2,	128,  24,  2},
++	{12288000,  32000,	1, 8,    0,	128,  12,  2,	128,  12,  2},
++	{12288000,  48000,	1, 8,    0,	128,   8,  2,	128,   8,  2},
++	{12288000,  96000,	1, 8,    0,	 64,   8,  2,	 64,   8,  2},
+ 	/* 192k rate */
+ 	{ 6144000, 192000,	2, 8,	 0,	 32,   8,  2,	 32,   8,  2},
+ 	{12288000, 192000,	1, 8,	 0,	 32,   8,  2,	 32,   8,  2},
