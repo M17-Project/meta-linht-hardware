@@ -16,7 +16,7 @@ This layer provides hardware abstraction and device support for the LinHT projec
 ### Peripheral support
 
 #### Audio subsystem
-- **Codec**: Wolfson WM8960 (I2C address 0x1a)
+- **Codec**: Texas Instruments TLV320AIC3100 (I2C address 0x18)
   - Connected via SAI3 (I2S1)
 - **RF I/Q Interface**: SX1255 transceiver
   - Connected via SAI1 (I2S0)
