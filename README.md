@@ -94,17 +94,17 @@ The custom device tree ([sbc-mcm-imx93.dtsi](recipes-kernel/linux/files/sbc-mcm-
 
 ### Pin multiplexing
 - **SAI1**: I2S interface for SX1255 (TX_BCLK, TX_SYNC, TX_DATA, RX_DATA)
-- **SAI3**: I2S interface for WM8960 with MCLK output
+- **SAI3**: I2S interface for TLV320AIC3100 with MCLK output
 - **LPSPI3**: SPI for SX1255 control
 - **LPSPI6**: SPI for ST7735R display
-- **LPI2C3**: I2C for WM8960 codec
+- **LPI2C3**: I2C for TLV320AIC3100 codec
 - **TPM3**: PWM channels for backlight control
 - **GPIO**: User interface elements (keyboard, buttons, LEDs)
 
 ### Audio configuration
 ```dts
 sound0: SX1255 I/Q interface (simple-audio-card)
-sound1: WM8960 audio codec (fsl,imx-audio-wm8960)
+sound1: TLV320AIC3100 audio codec (simple-audio-card)
 ```
 
 ## Integration instructions
