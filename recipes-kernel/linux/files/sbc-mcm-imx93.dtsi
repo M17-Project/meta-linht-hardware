@@ -13,7 +13,6 @@
 			MX93_PAD_GPIO_IO26__SAI3_TX_SYNC		0x31e
 			MX93_PAD_GPIO_IO21__SAI3_TX_DATA00		0x31e
 			MX93_PAD_GPIO_IO20__SAI3_RX_DATA00		0x31e
-            		MX93_PAD_GPIO_IO17__SAI3_MCLK           0x31e
 		>;
     };
     pinctrl_spi0: lpspi3grp {
@@ -205,14 +204,13 @@
 };
 
 // I2S1 - TLV320AIC3100
+// Rev C: the codec runs from its own 12 MHz oscillator and is BCLK/WCLK
+// master, SAI3 is slave and does not output MCLK (trace to SoM removed)
 &sai3 {
     #sound-dai-cells = <0>;
     pinctrl-names = "default";
     pinctrl-0 = <&pinctrl_i2s1>;
-    assigned-clocks = <&clk IMX93_CLK_SAI3>;
-    assigned-clock-parents = <&clk IMX93_CLK_AUDIO_PLL>;
-    assigned-clock-rates = <12288000>;
-    fsl,sai-mclk-direction-output;
+    /delete-property/ fsl,sai-mclk-direction-output;
     status = "okay";
 };
 
@@ -241,7 +239,7 @@
         // SPLVDD-supply = <&reg_aic3100_splvdd>;
         // SPRVDD-supply = <&reg_aic3100_sprvdd>;
 
-        clocks = <&clk IMX93_CLK_SAI3>;
+        clocks = <&aic3100_mclk>;
         clock-names = "mclk";
     };
 };
@@ -315,6 +313,14 @@
 };
 
 &{/} {
+    // 12 MHz ECS-2520MV oscillator feeding the TLV320AIC3100 MCLK
+    aic3100_mclk: clock-aic3100-mclk {
+        compatible = "fixed-clock";
+        #clock-cells = <0>;
+        clock-frequency = <12000000>;
+        clock-output-names = "aic3100_mclk";
+    };
+
     sound0: sound@0 {
         compatible = "simple-audio-card";
         simple-audio-card,name = "SX1255";
@@ -398,8 +404,8 @@
         compatible = "simple-audio-card";
         simple-audio-card,name = "AUDIO";
         simple-audio-card,format = "i2s";  // DSP mode
-        simple-audio-card,bitclock-master = <&cpu_dai>;   // SAI3 is BCLK master
-        simple-audio-card,frame-master = <&cpu_dai>;     // SAI3 is LRCLK master
+        simple-audio-card,bitclock-master = <&aic3100_dai>;   // codec is BCLK master
+        simple-audio-card,frame-master = <&aic3100_dai>;     // codec is LRCLK master
         status = "okay";
 
         simple-audio-card,widgets =
