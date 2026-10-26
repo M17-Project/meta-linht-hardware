@@ -42,8 +42,6 @@
     // GPIOS
     pinctrl_gpio_user: gpio_usergrp {
         fsl,pins = <
-            MX93_PAD_SD2_DATA3__GPIO3_IO06      0x31e /* MIC_GAIN */
-            MX93_PAD_SD2_DATA2__GPIO3_IO05      0x31e /* /MIC_MUTE */
             MX93_PAD_GPIO_IO04__GPIO2_IO04      0x31e /* 125 - LED 1 */
             MX93_PAD_GPIO_IO05__GPIO2_IO05      0x31e /* 125 - LED 2 */
             MX93_PAD_GPIO_IO22__GPIO2_IO22      0x31e /* RF_RST */
@@ -134,31 +132,22 @@
         >;
     };
 
-    // 3.3V regulator
-    pinctrl_gpio3_io7: gpio3io7grp {
+    // TLV320AIC3100 reset (Pin 110)
+    pinctrl_aic3100: aic3100grp {
         fsl,pins = <
-            MX93_PAD_SD2_RESET_B__GPIO3_IO07    0x31e
+            MX93_PAD_SD3_DATA2__GPIO3_IO24      0x31e /* CODEC_RESET */
         >;
     };
 };
 
-// Disable the sdcard power regulator - GPIO3_IO7 is repurposed as always-on 3.3V
-//&reg_usdhc2_vmmc {
-//    status = "disabled";
-//    /delete-property/ gpio;
-//    /delete-property/ pinctrl-names;
-//    /delete-property/ pinctrl-0;
-//};
-
-//&usdhc2 {
-//    status = "disabled";
-//    /delete-property/ pinctrl-names;
-//    /delete-property/ pinctrl-0;
-//    /delete-property/ pinctrl-1;
-//    /delete-property/ pinctrl-2;
-//    /delete-property/ vmmc-supply;
-//    /delete-property/ cd-gpios;
-//};
+// Backup SD card on the SD2 test points (TP17-TP22)
+// No card detect line (Pin 74 unconnected), poll for the card instead.
+// Stay at 3.3V signalling, UHS speeds are not reliable over test point wiring.
+&usdhc2 {
+    /delete-property/ cd-gpios;
+    broken-cd;
+    no-1-8-v;
+};
 
 &usdhc3 {
     status = "disabled";
@@ -167,19 +156,6 @@
     /delete-property/ pinctrl-1;
     /delete-property/ pinctrl-2;
     /delete-property/ mmc-pwrseq;
-};
-
-// 3.3V Regulator
-&gpio3 {
-    pinctrl-names = "default";
-    pinctrl-0 = <&pinctrl_gpio3_io7>;
-    
-    gpio3_io7_hog {
-        gpio-hog;
-        gpios = <7 GPIO_ACTIVE_HIGH>;
-        output-high;
-        line-name = "gpio3_io7_always_on";
-    };
 };
 
 // PWM
@@ -228,6 +204,8 @@
         compatible = "ti,tlv320aic3100";
         reg = <0x18>;
         #sound-dai-cells = <0>;
+        pinctrl-names = "default";
+        pinctrl-0 = <&pinctrl_aic3100>;
         reset-gpios = <&gpio3 24 GPIO_ACTIVE_LOW>;
 
         AVDD-supply = <&reg_aic3100_avdd>;
