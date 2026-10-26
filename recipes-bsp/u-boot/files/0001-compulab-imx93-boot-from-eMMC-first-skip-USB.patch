@@ -1,0 +1,25 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: OE3ANC <dev@oe3anc.at>
+Date: Mon, 26 Oct 2026 11:30:00 +0100
+Subject: [PATCH] compulab-imx93: boot from eMMC first, skip USB
+
+LinHT boots from eMMC, with a backup SD card on the SD2 test points.
+Try eMMC first and SD as fallback, and drop usb_ul: "usb start" scans
+the bus on every boot although LinHT never boots from USB.
+
+Signed-off-by: OE3ANC <dev@oe3anc.at>
+---
+ include/configs/compulab-imx93.h | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+--- a/include/configs/compulab-imx93.h
++++ b/include/configs/compulab-imx93.h
+@@ -165,7 +165,7 @@
+ 				    "true;" \
+ 				"fi;" \
+ 			"fi;\0" \
+-		"bootlist=sd_ul usb_ul emmc_ul\0" \
++		"bootlist=emmc_ul sd_ul\0" \
+ 	"bsp_bootcmd=echo Running BSP bootcmd ...; " \
+ 		"for src in ${bootlist}; do " \
+ 			"run ${src}; " \
