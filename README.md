@@ -30,7 +30,7 @@ The full build procedure is described on the M17 wiki: [LinHT Image Build](https
   - Connected via SAI3 (I2S1)
   - MCLK from a dedicated 12 MHz oscillator (ECS-2520MV); the codec is I2S bit/frame clock master
   - Exposed as ALSA card `AUDIO`
-  - Microphone gain and mute controlled via GPIO
+  - Codec reset via GPIO
   - Headphone jack detection via GPIO
 - **RF I/Q Interface**: SX1255 transceiver
   - Connected via SAI1 (I2S0)
@@ -57,6 +57,10 @@ The full build procedure is described on the M17 wiki: [LinHT Image Build](https
 - GNSS receiver on LPUART3 (ENET1 pads)
 - GPIOs for reset, wakeup and PPS
 
+#### Storage
+- eMMC on the SoM
+- Backup SD card connection on the SD2 test points (TP17-TP22), USDHC2 at 3.3V signalling without card detect
+
 #### Communication
 - **I2C**: LPI2C3 for audio codec communication
 - **SPI**:
@@ -73,6 +77,10 @@ meta-linht-hardware/
 │   ├── layer.conf                        # Layer configuration
 │   └── machine/
 │       └── mcm-imx93.conf                # Machine definition
+├── recipes-bsp/
+│   └── u-boot/
+│       ├── u-boot-compulab_%.bbappend    # U-Boot boot order and delay
+│       └── files/
 ├── recipes-core/
 │   └── images/
 │       └── linht-image.bbappend          # Adds hardware kernel modules to linht-image
@@ -98,6 +106,16 @@ The [mcm-imx93.conf](conf/machine/mcm-imx93.conf) machine configuration provides
 - **Kernel**: Linux 6.x with CompuLab patches
 - **Device Tree**: Custom `sbc-mcm-imx93.dtb` (model `LinHT`)
 - **Serial Console**: 115200 baud on ttyLP0
+
+### U-Boot
+
+The [u-boot-compulab bbappend](recipes-bsp/u-boot/u-boot-compulab_%.bbappend) shortens the boot:
+
+- `bootdelay=0`. Hold a key on the serial console during power-on to stop autoboot.
+- `bootlist=emmc_ul sd_ul`: boot from eMMC, fall back to the backup SD card. The USB scan of the CompuLab default (`sd_ul usb_ul emmc_ul`) is skipped.
+- No U-Boot video/splash (`# CONFIG_VIDEO is not set`). The CompuLab default sets up an LCDIF/LVDS panel that LinHT does not have; the SPI display is driven by Linux only.
+
+These are compiled-in defaults. A board with a saved U-Boot environment keeps its stored values until they are changed with `fw_setenv` or reset with `env default -a; saveenv` in U-Boot.
 
 ## Kernel configuration
 
