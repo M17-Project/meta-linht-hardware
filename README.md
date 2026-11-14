@@ -113,7 +113,9 @@ The [u-boot-compulab bbappend](recipes-bsp/u-boot/u-boot-compulab_%.bbappend) sh
 
 - `bootdelay=0`. Hold a key on the serial console during power-on to stop autoboot.
 - `bootlist=emmc_ul sd_ul`: boot from eMMC, fall back to the backup SD card. The USB scan of the CompuLab default (`sd_ul usb_ul emmc_ul`) is skipped.
-- No U-Boot video/splash (`# CONFIG_VIDEO is not set`). The CompuLab default sets up an LCDIF/LVDS panel that LinHT does not have; the SPI display is driven by Linux only.
+- No U-Boot video subsystem (`# CONFIG_VIDEO is not set`). The CompuLab default sets up an LCDIF/LVDS panel that LinHT does not have.
+- Boot splash on the ST7735R SPI display (`CONFIG_LINHT_SPLASH`): a small driver initializes the panel over LPSPI6 like the Linux `st7735r` driver and draws [linht-splash.png](recipes-bsp/u-boot/files/linht-splash.png) (160x128, converted to RGB565 at build time by `png2rgb565.py`) before autoboot, then switches the backlight on. The panel reset is not wired to the SoM, so the image stays until psplash takes over the display.
+  - The display runs from +3V3, which the ATtiny PMU enables 1000 ms after the SoM supply (PMU firmware in [LinHT-utils](https://github.com/M17-Project/LinHT-utils/tree/main/pmu)). The driver waits until `CONFIG_LINHT_SPLASH_MIN_BOOT_MS` (1150 ms) after power-on before talking to the panel. With the older 3000 ms PMU delay the panel is still unpowered at that point and the splash stays dark.
 
 These are compiled-in defaults. A board with a saved U-Boot environment keeps its stored values until they are changed with `fw_setenv` or reset with `env default -a; saveenv` in U-Boot.
 

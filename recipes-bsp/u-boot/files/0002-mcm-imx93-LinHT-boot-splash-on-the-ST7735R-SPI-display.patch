@@ -1,0 +1,300 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: OE3ANC <dev@oe3anc.at>
+Date: Mon, 26 Oct 2026 16:00:00 +0100
+Subject: [PATCH] mcm-imx93: LinHT boot splash on the ST7735R SPI display
+
+Draw a 160x128 RGB565 boot image on the LinHT ST7735R display (LPSPI6)
+before autoboot. The panel setup matches the Linux st7735r driver
+(jd-t18003-t01, rotation 270). The panel reset is not wired to the SoM,
+so the image stays visible until Linux re-initializes the display.
+
+The display runs from +3V3, which the LinHT PMU enables 1000 ms after
+the SoM supply; the driver waits until CONFIG_LINHT_SPLASH_MIN_BOOT_MS
+after power-on before talking to the panel. The backlight (GPIO_IO24)
+is switched on only after the image is drawn.
+
+Signed-off-by: OE3ANC <dev@oe3anc.at>
+---
+--- a/board/compulab/mcm-imx93/Kconfig
++++ b/board/compulab/mcm-imx93/Kconfig
+@@ -80,4 +80,22 @@
+ config	IMX_CONTAINER_CFG
+ 	default "arch/arm/mach-imx/imx9/container.cfg"
+ 
++config LINHT_SPLASH
++	bool "LinHT boot splash on the ST7735R SPI display"
++	depends on DM_SPI && DM_GPIO && EVENT
++	help
++	  Initialize the LinHT ST7735R display over SPI and draw a boot
++	  splash image before autoboot. The 160x128 RGB565 image is read
++	  from board/compulab/mcm-imx93/linht_splash_img.h, which the
++	  meta-linht-hardware layer generates from a PNG.
++
++config LINHT_SPLASH_MIN_BOOT_MS
++	int "Earliest time after power-on to talk to the display (ms)"
++	depends on LINHT_SPLASH
++	default 1150
++	help
++	  The display runs from +3V3, which the LinHT PMU enables 1000 ms
++	  after the SoM supply. The splash waits until this many
++	  milliseconds after power-on before initializing the panel.
++
+ endif
+--- a/board/compulab/mcm-imx93/Makefile
++++ b/board/compulab/mcm-imx93/Makefile
+@@ -5,3 +5,6 @@
+ #
+ ccflags-y += -I$(srctree)/board/compulab/plat/imx93
+ obj-y += ../plat/imx93/
++ifndef CONFIG_SPL_BUILD
++obj-$(CONFIG_LINHT_SPLASH) += linht_splash.o
++endif
+--- a/board/compulab/mcm-imx93/linht_splash.c
++++ b/board/compulab/mcm-imx93/linht_splash.c
+@@ -0,0 +1,200 @@
++// SPDX-License-Identifier: GPL-2.0+
++/*
++ * LinHT boot splash on the ST7735R SPI display
++ *
++ * Draws a 160x128 RGB565 image with the orientation and pixel format the
++ * Linux st7735r driver uses (rotation 270). The panel reset is not wired to
++ * the SoM, so the image stays on the display until Linux re-initializes the
++ * panel when the first user (psplash) opens the framebuffer.
++ */
++
++#include <bootstage.h>
++#include <dm.h>
++#include <event.h>
++#include <log.h>
++#include <spi.h>
++#include <asm/gpio.h>
++#include <linux/delay.h>
++
++#include "linht_splash_img.h"
++
++#define LCD_WIDTH		160
++#define LCD_HEIGHT		128
++
++#define MIPI_DCS_EXIT_SLEEP_MODE	0x11
++#define MIPI_DCS_ENTER_NORMAL_MODE	0x13
++#define MIPI_DCS_EXIT_INVERT_MODE	0x20
++#define MIPI_DCS_SET_DISPLAY_ON		0x29
++#define MIPI_DCS_SET_COLUMN_ADDRESS	0x2a
++#define MIPI_DCS_SET_PAGE_ADDRESS	0x2b
++#define MIPI_DCS_WRITE_MEMORY_START	0x2c
++#define MIPI_DCS_SET_ADDRESS_MODE	0x36
++#define MIPI_DCS_SET_PIXEL_FORMAT	0x3a
++
++#define ST7735R_FRMCTR1		0xb1
++#define ST7735R_FRMCTR2		0xb2
++#define ST7735R_FRMCTR3		0xb3
++#define ST7735R_INVCTR		0xb4
++#define ST7735R_PWCTR1		0xc0
++#define ST7735R_PWCTR2		0xc1
++#define ST7735R_PWCTR3		0xc2
++#define ST7735R_PWCTR4		0xc3
++#define ST7735R_PWCTR5		0xc4
++#define ST7735R_VMCTR1		0xc5
++#define ST7735R_GAMCTRP1	0xe0
++#define ST7735R_GAMCTRN1	0xe1
++
++#define ST7735R_MY		BIT(7)
++#define ST7735R_MV		BIT(5)
++
++/* ST7735: wait 120 ms after reset or sleep out before the next command */
++#define ST7735R_SLEEP_OUT_MS	120
++
++_Static_assert(sizeof(linht_splash_img) == LCD_WIDTH * LCD_HEIGHT * 2,
++	       "splash image must be 160x128 RGB565");
++
++struct st7735r_cmd {
++	u8 cmd;
++	u8 len;
++	u8 data[16];
++};
++
++/* Same register setup as the Linux st7735r driver for jd-t18003-t01 */
++static const struct st7735r_cmd st7735r_init[] = {
++	{ ST7735R_FRMCTR1, 3, { 0x01, 0x2c, 0x2d } },
++	{ ST7735R_FRMCTR2, 3, { 0x01, 0x2c, 0x2d } },
++	{ ST7735R_FRMCTR3, 6, { 0x01, 0x2c, 0x2d, 0x01, 0x2c, 0x2d } },
++	{ ST7735R_INVCTR, 1, { 0x07 } },
++	{ ST7735R_PWCTR1, 3, { 0xa2, 0x02, 0x84 } },
++	{ ST7735R_PWCTR2, 1, { 0xc5 } },
++	{ ST7735R_PWCTR3, 2, { 0x0a, 0x00 } },
++	{ ST7735R_PWCTR4, 2, { 0x8a, 0x2a } },
++	{ ST7735R_PWCTR5, 2, { 0x8a, 0xee } },
++	{ ST7735R_VMCTR1, 1, { 0x0e } },
++	{ MIPI_DCS_EXIT_INVERT_MODE, 0, { } },
++	{ MIPI_DCS_SET_ADDRESS_MODE, 1, { ST7735R_MY | ST7735R_MV } },
++	{ MIPI_DCS_SET_PIXEL_FORMAT, 1, { 0x05 } },	/* 16 bit/pixel */
++	{ ST7735R_GAMCTRP1, 16, { 0x02, 0x1c, 0x07, 0x12, 0x37, 0x32, 0x29,
++				  0x2d, 0x29, 0x25, 0x2b, 0x39, 0x00, 0x01,
++				  0x03, 0x10 } },
++	{ ST7735R_GAMCTRN1, 16, { 0x03, 0x1d, 0x07, 0x06, 0x2e, 0x2c, 0x29,
++				  0x2d, 0x2e, 0x2e, 0x37, 0x3f, 0x00, 0x00,
++				  0x02, 0x10 } },
++	{ MIPI_DCS_SET_COLUMN_ADDRESS, 4, { 0, 0, 0, LCD_WIDTH - 1 } },
++	{ MIPI_DCS_SET_PAGE_ADDRESS, 4, { 0, 0, 0, LCD_HEIGHT - 1 } },
++};
++
++struct linht_splash_priv {
++	struct gpio_desc dc;
++	struct gpio_desc backlight;
++};
++
++static int st7735r_write(struct udevice *dev, u8 cmd, const u8 *data,
++			 size_t len)
++{
++	struct linht_splash_priv *priv = dev_get_priv(dev);
++	int ret;
++
++	dm_gpio_set_value(&priv->dc, 0);
++	ret = dm_spi_xfer(dev, 8, &cmd, NULL, SPI_XFER_ONCE);
++	if (ret || !len)
++		return ret;
++
++	dm_gpio_set_value(&priv->dc, 1);
++	return dm_spi_xfer(dev, len * 8, data, NULL, SPI_XFER_ONCE);
++}
++
++static int linht_splash_draw(struct udevice *dev)
++{
++	struct linht_splash_priv *priv = dev_get_priv(dev);
++	int i, ret;
++
++	/*
++	 * The panel runs from +3V3, which the PMU enables after the SoM
++	 * supply. Give it time to come up and finish its power-on reset.
++	 */
++	while (timer_get_boot_us() / 1000 < CONFIG_LINHT_SPLASH_MIN_BOOT_MS)
++		mdelay(10);
++
++	ret = st7735r_write(dev, MIPI_DCS_EXIT_SLEEP_MODE, NULL, 0);
++	if (ret)
++		return ret;
++	mdelay(ST7735R_SLEEP_OUT_MS);
++
++	for (i = 0; i < ARRAY_SIZE(st7735r_init); i++) {
++		ret = st7735r_write(dev, st7735r_init[i].cmd,
++				    st7735r_init[i].data, st7735r_init[i].len);
++		if (ret)
++			return ret;
++	}
++
++	ret = st7735r_write(dev, MIPI_DCS_WRITE_MEMORY_START,
++			    linht_splash_img, sizeof(linht_splash_img));
++	if (ret)
++		return ret;
++
++	ret = st7735r_write(dev, MIPI_DCS_SET_DISPLAY_ON, NULL, 0);
++	if (ret)
++		return ret;
++	ret = st7735r_write(dev, MIPI_DCS_ENTER_NORMAL_MODE, NULL, 0);
++	if (ret)
++		return ret;
++
++	/* Backlight on only once the image is in place, no white flash */
++	dm_gpio_set_value(&priv->backlight, 1);
++
++	return 0;
++}
++
++static int linht_splash_probe(struct udevice *dev)
++{
++	struct linht_splash_priv *priv = dev_get_priv(dev);
++	int ret;
++
++	ret = gpio_request_by_name(dev, "dc-gpios", 0, &priv->dc,
++				   GPIOD_IS_OUT);
++	if (ret)
++		return ret;
++
++	ret = gpio_request_by_name(dev, "backlight-gpios", 0, &priv->backlight,
++				   GPIOD_IS_OUT);
++	if (ret)
++		return ret;
++
++	ret = dm_spi_claim_bus(dev);
++	if (ret)
++		return ret;
++
++	ret = linht_splash_draw(dev);
++	dm_spi_release_bus(dev);
++
++	return ret;
++}
++
++static const struct udevice_id linht_splash_ids[] = {
++	{ .compatible = "linht,st7735r-splash" },
++	{ }
++};
++
++U_BOOT_DRIVER(linht_splash) = {
++	.name		= "linht_splash",
++	.id		= UCLASS_NOP,
++	.of_match	= linht_splash_ids,
++	.probe		= linht_splash_probe,
++	.priv_auto	= sizeof(struct linht_splash_priv),
++};
++
++static int linht_splash_show(void)
++{
++	struct udevice *dev;
++	int ret;
++
++	ret = uclass_get_device_by_driver(UCLASS_NOP,
++					  DM_DRIVER_GET(linht_splash), &dev);
++	if (ret)
++		log_warning("LinHT splash: display not available (%d)\n", ret);
++
++	/* Never stop the boot because of the splash */
++	return 0;
++}
++EVENT_SPY_SIMPLE(EVT_LAST_STAGE_INIT, linht_splash_show);
+--- a/arch/arm/dts/mcm-imx93-u-boot.dtsi
++++ b/arch/arm/dts/mcm-imx93-u-boot.dtsi
+@@ -3,3 +3,43 @@
+ 
+ #include "imx93-u-boot.dtsi"
+ #include "cl-imx93-u-boot.dtsi"
++
++/* LinHT: ST7735R SPI display for the U-Boot boot splash */
++&iomuxc {
++	pinctrl_linht_lcd: linhtlcdgrp {
++		fsl,pins = <
++			MX93_PAD_GPIO_IO00__GPIO2_IO00		0x3fe	/* LCD_CS */
++			MX93_PAD_GPIO_IO01__LPSPI6_SIN		0x3fe
++			MX93_PAD_GPIO_IO02__LPSPI6_SOUT		0x3fe	/* LCD_SDA */
++			MX93_PAD_GPIO_IO03__LPSPI6_SCK		0x3fe	/* LCD_CLK */
++			MX93_PAD_GPIO_IO19__GPIO2_IO19		0x31e	/* LCD_RS */
++			MX93_PAD_GPIO_IO24__GPIO2_IO24		0x51e	/* DISP_PWM */
++		>;
++	};
++};
++
++/*
++ * On LinHT GPIO_IO24 drives the display backlight. Use a pull-down instead
++ * of the pull-up of the CompuLab PMIC IRQ setting, so the backlight stays
++ * off until the splash image is drawn.
++ */
++&pinctrl_pmic {
++	fsl,pins = <
++		MX93_PAD_GPIO_IO24__GPIO2_IO24		0x51e
++	>;
++};
++
++&lpspi6 {
++	pinctrl-names = "default";
++	pinctrl-0 = <&pinctrl_linht_lcd>;
++	cs-gpios = <&gpio2 0 GPIO_ACTIVE_LOW>;
++	status = "okay";
++
++	display@0 {
++		compatible = "linht,st7735r-splash";
++		reg = <0>;
++		spi-max-frequency = <8000000>;
++		dc-gpios = <&gpio2 19 GPIO_ACTIVE_HIGH>;
++		backlight-gpios = <&gpio2 24 GPIO_ACTIVE_HIGH>;
++	};
++};
