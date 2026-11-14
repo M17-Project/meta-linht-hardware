@@ -1,0 +1,13 @@
+# Stable device node for the LinHT keypad.
+#
+# /dev/input/eventN is allocated in registration order, it is not a hardware
+# identity. The i.MX93 BBNSM power key (CONFIG_INPUT_BBNSM_PWRKEY=y, needed so
+# the PMU's ONOFF pulse reaches logind) is built into the kernel and registers
+# its input device during kernel init, while matrix-keypad is an out-of-tree
+# module loaded later from userspace. So the power key now takes event0 and the
+# keypad landed on event1 - before the power key was enabled the keypad was
+# event0.
+#
+# Match on the input device name instead, which comes from DRIVER_NAME in
+# matrix-keypad.c, and let applications open /dev/input/keypad.
+SUBSYSTEM=="input", KERNEL=="event*", ATTRS{name}=="matrix-keypad", SYMLINK+="input/keypad"
