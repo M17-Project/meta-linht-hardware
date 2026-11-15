@@ -65,8 +65,9 @@ static void matrix_keypad_scan(struct timer_list *t)
         // udelay(1);
 
         for (c = 0; c < MATRIX_COLS; c++) {
-            // If a column reads low, the key is pressed
-            if (gpiod_get_value(data->col_gpios->desc[c]) == 0) {
+            // Columns are GPIO_ACTIVE_LOW in the device tree, so a pressed
+            // key (column pulled low by the scanned row) reads as 1
+            if (gpiod_get_value(data->col_gpios->desc[c]) == 1) {
                 current_key_state |= (1U << (r * MATRIX_COLS + c));
             }
         }
@@ -92,7 +93,7 @@ static void matrix_keypad_scan(struct timer_list *t)
         data->last_key_state = current_key_state;
     }
 
-    /* PTT: any of the two GPIOs active -> key pressed */
+    /* PTT: any of the two GPIOs active -> key pressed (1 = pressed, as per evdev) */
     bool ptt_now = 0;
     if (data->ptt_gpio)
         ptt_now |= gpiod_get_value(data->ptt_gpio);
@@ -100,7 +101,7 @@ static void matrix_keypad_scan(struct timer_list *t)
         ptt_now |= gpiod_get_value(data->ext_ptt_gpio);
 
     if (ptt_now != data->ptt_last) {
-        input_report_key(input_dev, KEY_P, !ptt_now);
+        input_report_key(input_dev, KEY_P, ptt_now);
         data->ptt_last = ptt_now;
         any_changed = true;
     }
@@ -109,7 +110,7 @@ static void matrix_keypad_scan(struct timer_list *t)
     if (data->opt_gpio) {
         bool opt_now = gpiod_get_value(data->opt_gpio);
         if (opt_now != data->opt_last) {
-            input_report_key(input_dev, KEY_O, !opt_now);
+            input_report_key(input_dev, KEY_O, opt_now);
             data->opt_last = opt_now;
             any_changed = true;
         }
@@ -212,23 +213,24 @@ static int matrix_keypad_probe(struct platform_device *pdev)
         dev_info(dev, "OPT button GPIO configured\n");
     }
 
+    // All keys and buttons start released
+    data->last_key_state = 0;
+    data->ptt_last = 0;
+    data->opt_last = 0;
+
+    // Register the input device before the first scan can report events
+    error = input_register_device(input_dev);
+    if (error) {
+        dev_err(dev, "Failed to register input device\n");
+        return error;
+    }
+
+    platform_set_drvdata(pdev, data);
+
     // Set up and start the polling timer
     timer_setup(&data->poll_timer, matrix_keypad_scan, 0);
     data->poll_timer.expires = jiffies + msecs_to_jiffies(POLL_INTERVAL_MS);
     add_timer(&data->poll_timer);
-
-    // Register the input device
-    error = input_register_device(input_dev);
-    if (error) {
-        dev_err(dev, "Failed to register input device\n");
-        del_timer_sync(&data->poll_timer);
-        return error;
-    }
-
-    data->ptt_last = 1;
-    data->opt_last = 1;
-
-    platform_set_drvdata(pdev, data);
     dev_info(dev, "Matrix keypad driver loaded\n");
 
     return 0;
